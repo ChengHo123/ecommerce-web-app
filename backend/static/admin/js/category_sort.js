@@ -35,7 +35,58 @@
       animation: 150,
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
-      onEnd: function () {
+      onEnd: function (evt) {
+        var movedTbody = evt.item;
+        var controls = movedTbody.querySelector('.cat-row-controls');
+
+        if (controls) {
+          var id = parseInt(controls.dataset.id, 10);
+          var oldParentId = controls.dataset.parentId || '';
+          var hasChildren = controls.dataset.hasChildren === '1';
+
+          var newParentId = '';
+          var parentName = null;
+
+          // categories with children can never become a child (max 2 levels)
+          if (!hasChildren) {
+            var prevTbody = prevSiblingTbody(movedTbody);
+            if (prevTbody) {
+              var prevControls = prevTbody.querySelector('.cat-row-controls');
+              if (prevControls && prevControls.dataset.parentId) {
+                // dropped after a child row → inherit the same parent
+                newParentId = prevControls.dataset.parentId;
+                var parentTbody = findTbodyById(newParentId);
+                parentName = parentTbody ? getNameFromTbody(parentTbody) : '';
+              } else if (prevControls && !prevControls.dataset.parentId) {
+                // dropped after a top-level row — check if landed between parent and its children
+                var nextTbody = nextSiblingTbody(movedTbody);
+                if (nextTbody) {
+                  var nextControls = nextTbody.querySelector('.cat-row-controls');
+                  if (nextControls && nextControls.dataset.parentId === prevControls.dataset.id) {
+                    // sandwiched between a parent and its children → become a child
+                    newParentId = prevControls.dataset.id;
+                    parentName = getNameFromTbody(prevTbody);
+                  }
+                }
+                // else: after top-level with no children following → stays top-level
+              }
+            }
+            // else: moved to first position → top-level
+          }
+
+          if (newParentId !== oldParentId) {
+            // rule 2 included: if child dragged out of group, newParentId === '' → clears parent
+            controls.dataset.parentId = newParentId;
+            setParentCell(movedTbody, parentName);
+            saveParentAndOrder(id, newParentId ? parseInt(newParentId, 10) : null);
+          }
+
+          // if a parent was dragged, clear parent reference on all its children
+          if (hasChildren) {
+            detachChildren(controls.dataset.id);
+          }
+        }
+
         updateVisibility();
         document.getElementById('sort-save-bar').classList.add('visible');
         document.getElementById('sort-save-msg').textContent = '';
@@ -178,6 +229,29 @@
     var prev = tbody.previousElementSibling;
     while (prev && prev.tagName !== 'TBODY') prev = prev.previousElementSibling;
     return prev || null;
+  }
+
+  function nextSiblingTbody(tbody) {
+    var next = tbody.nextElementSibling;
+    while (next && next.tagName !== 'TBODY') next = next.nextElementSibling;
+    return next || null;
+  }
+
+  // when a parent is dragged, clear parent reference on all its children in place
+  function detachChildren(parentIdStr) {
+    var base = location.pathname.replace(/\/$/, '');
+    var csrfToken = getCookie('csrftoken');
+    document.querySelectorAll('#result_list .cat-row-controls').forEach(function (c) {
+      if (c.dataset.parentId !== parentIdStr) return;
+      c.dataset.parentId = '';
+      setParentCell(c.closest('tbody'), null);
+      fetch(base + '/parent/save/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ id: parseInt(c.dataset.id, 10), parent_id: null }),
+      });
+    });
+    updateVisibility();
   }
 
   function saveParentAndOrder(id, parentId) {
