@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name_zh|default:product.name }} — 兔窩{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;padding:12px 0;">
+  <div class="page-container breadcrumb">
+    <a href="/">首頁</a><span>/</span>
+    <a href="/products/">商品目錄</a>
+    {% if product.category %}
+      <span>/</span><a href="/products/?category={{ product.category.slug }}">{{ product.category.name }}</a>
+    {% endif %}
+    <span>/</span><span style="color:#333;">{{ product.name_zh|default:product.name }}</span>
+  </div>
+</div>
+
+<div class="page-container" style="padding-top:32px;padding-bottom:56px;"
+     x-data="{
+       activeImg: '{{ product.first_image|default:""|escapejs }}',
+       quantity: 1,
+     }">
+
+  <!-- Product Main -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;" class="md-product-grid">
+
+    <!-- Images -->
+    <div>
+      <!-- Main image -->
+      <div style="border:1px solid #e0e0e0;border-radius:4px;overflow:hidden;aspect-ratio:1;background:#f5f5f5;margin-bottom:10px;">
+        <template x-if="activeImg">
+          <img :src="activeImg" alt="{{ product.name_zh|default:product.name }}"
+               style="width:100%;height:100%;object-fit:cover;">
+        </template>
+        <template x-if="!activeImg">
+          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;color:#ccc;">🐇</div>
+        </template>
+      </div>
+      <!-- Thumbnails -->
+      {% with imgs=product.all_images %}
+      {% if imgs|length > 1 %}
+        <div style="display:flex;gap:8px;overflow-x:auto;">
+          {% for img in imgs %}
+            <div @click="activeImg = '{{ img|escapejs }}'"
+                 style="width:64px;height:64px;flex-shrink:0;border-radius:4px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .15s;"
+                 :style="activeImg === '{{ img|escapejs }}' ? 'border-color:#8f9b34' : ''">
+              <img src="{{ img }}" alt=""
+                   style="width:100%;height:100%;object-fit:cover;">
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% endwith %}
+    </div>
+
+    <!-- Info -->
+    <div>
+      {% if product.brand %}
+        <p style="font-size:12px;color:#999;margin:0 0 6px;letter-spacing:.5px;text-transform:uppercase;">{{ product.brand }}</p>
+      {% endif %}
+
+      {% if product.promo_label_zh %}
+        <span style="display:inline-block;background:#fff3cd;color:#856404;font-size:12px;padding:2px 8px;border-radius:3px;margin-bottom:10px;">{{ product.promo_label_zh }}</span>
+      {% endif %}
+
+      <h1 style="font-size:clamp(19px,2.5vw,24px);font-weight:700;color:#333;margin:0 0 16px;line-height:1.35;">
+        {{ product.name_zh|default:product.name }}
+      </h1>
+
+      <!-- Price -->
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:20px;padding:14px 0;border-top:1px solid #f0f0f0;border-bottom:1px solid #f0f0f0;">
+        {% if not product.hide_price %}
+          {% if product.sale_price %}
+            <span style="font-size:28px;font-weight:700;color:#8f9b34;">${{ product.sale_price }}</span>
+            <span style="font-size:16px;color:#aaa;text-decoration:line-through;">${{ product.base_price }}</span>
+          {% else %}
+            <span style="font-size:28px;font-weight:700;color:#8f9b34;">${{ product.base_price }}</span>
+          {% endif %}
+        {% else %}
+          <span style="font-size:16px;color:#999;">請聯絡客服詢問價格</span>
+        {% endif %}
+      </div>
+
+      <!-- Summary -->
+      {% if product.summary_zh %}
+        <div style="background:#f8f8f8;border-left:3px solid #8f9b34;padding:12px 16px;border-radius:0 4px 4px 0;margin-bottom:20px;font-size:14px;color:#555;line-height:1.7;">
+          {{ product.summary_zh|linebreaksbr }}
+        </div>
+      {% elif product.summary %}
+        <div style="background:#f8f8f8;border-left:3px solid #8f9b34;padding:12px 16px;border-radius:0 4px 4px 0;margin-bottom:20px;font-size:14px;color:#555;line-height:1.7;">
+          {{ product.summary|linebreaksbr }}
+        </div>
+      {% endif %}
+
+      <!-- Add to cart -->
+      {% if user.is_authenticated %}
+        <form method="post" action="/cart/add/{{ product.id }}/">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="/products/{{ product.slug }}/">
+
+          <!-- Variants -->
+          {% if product.has_variants and product.variants.all %}
+            <div style="margin-bottom:18px;">
+              <label style="display:block;font-size:13px;font-weight:700;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">選擇規格</label>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% for variant in product.variants.all %}
+                  <label style="cursor:pointer;">
+                    <input type="radio" name="variant_id" value="{{ variant.id }}" class="sr-only peer"
+                           {% if forloop.first %}checked{% endif %}>
+                    <span style="display:inline-block;padding:7px 16px;border:1.5px solid #ddd;border-radius:4px;font-size:13px;color:#555;cursor:pointer;transition:all .15s;"
+                          class="peer-checked-variant {% if variant.stock <= 0 %}opacity-50{% endif %}">
+                      {{ variant.name_zh|default:variant.name }}
+                      {% if variant.sale_price %}
+                        <span style="color:#8f9b34;font-size:12px;margin-left:4px;">${{ variant.sale_price }}</span>
+                      {% elif variant.price != product.base_price %}
+                        <span style="color:#8f9b34;font-size:12px;margin-left:4px;">${{ variant.price }}</span>
+                      {% endif %}
+                    </span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- Quantity -->
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-size:13px;font-weight:700;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">數量</label>
+            <div style="display:inline-flex;border:1.5px solid #ddd;border-radius:4px;overflow:hidden;">
+              <button type="button" @click="quantity = Math.max(1, quantity - 1)"
+                      style="width:38px;height:38px;background:#f8f8f8;border:none;cursor:pointer;font-size:18px;color:#555;transition:background .15s;"
+                      onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#f8f8f8'">−</button>
+              <input type="number" name="quantity" x-model="quantity" min="1"
+                     style="width:52px;height:38px;border:none;border-left:1.5px solid #ddd;border-right:1.5px solid #ddd;text-align:center;font-size:14px;font-family:inherit;outline:none;">
+              <button type="button" @click="quantity++"
+                      style="width:38px;height:38px;background:#f8f8f8;border:none;cursor:pointer;font-size:18px;color:#555;transition:background .15s;"
+                      onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#f8f8f8'">+</button>
+            </div>
+          </div>
+
+          {% if product.is_available %}
+            <button type="submit" class="btn-brand"
+                    style="width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:4px;letter-spacing:.3px;">
+              加入購物車
+            </button>
+          {% else %}
+            <button disabled
+                    style="width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:4px;background:#ccc;color:#fff;cursor:not-allowed;border:none;">
+              已售完
+            </button>
+          {% endif %}
+        </form>
+      {% else %}
+        <a href="/auth/login/" class="btn-brand"
+           style="display:block;width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:4px;text-align:center;letter-spacing:.3px;">
+          登入後加入購物車
+        </a>
+      {% endif %}
+
+      {% if product.is_preorder %}
+        <div style="margin-top:14px;background:#fff8ee;border:1px solid #fde8b0;border-radius:4px;padding:12px 14px;font-size:13px;color:#7a5000;">
+          ⏰ 預購商品：{{ product.preorder_note_zh|default:product.preorder_note }}
+        </div>
+      {% endif %}
+
+      <!-- Meta -->
+      <div style="margin-top:22px;padding-top:18px;border-top:1px solid #f0f0f0;font-size:12.5px;color:#aaa;line-height:2;">
+        {% if product.sku %}<div>SKU：{{ product.sku }}</div>{% endif %}
+        {% if product.category %}<div>分類：<a href="/products/?category={{ product.category.slug }}" style="color:#8f9b34;text-decoration:none;">{{ product.category.name }}</a></div>{% endif %}
+        {% if product.tags %}
+          <div>標籤：
+            {% for tag in product.tags %}
+              <a href="/products/?q={{ tag }}" style="color:#8f9b34;text-decoration:none;margin-right:4px;">#{{ tag }}</a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Description -->
+  {% if product.description %}
+    <div style="margin-top:48px;border-top:2px solid #e0e0e0;padding-top:36px;">
+      <h2 style="font-size:17px;font-weight:700;color:#333;margin:0 0 20px;padding-bottom:10px;border-bottom:2px solid #8f9b34;display:inline-block;">商品描述</h2>
+      <div style="font-size:14px;color:#555;line-height:1.9;max-width:720px;">{{ product.description|linebreaks }}</div>
+    </div>
+  {% endif %}
+
+  <!-- Reviews -->
+  <div style="margin-top:48px;border-top:2px solid #e0e0e0;padding-top:36px;">
+    <h2 style="font-size:17px;font-weight:700;color:#333;margin:0 0 24px;padding-bottom:10px;border-bottom:2px solid #8f9b34;display:inline-block;">顧客評論</h2>
+    {% if reviews %}
+      <div style="max-width:720px;">
+        {% for review in reviews %}
+          <div style="padding:18px 0;border-bottom:1px solid #f0f0f0;{% if forloop.last %}border-bottom:none;{% endif %}">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+              <div style="width:36px;height:36px;border-radius:50%;background:#8f9b34;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">
+                {{ review.user.name|first }}
+              </div>
+              <div>
+                <div style="font-size:14px;font-weight:600;color:#333;">{{ review.user.name }}</div>
+                <div style="color:#f5a623;font-size:14px;letter-spacing:1px;">
+                  {% for i in "12345" %}{% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}{% endfor %}
+                </div>
+              </div>
+              <span style="margin-left:auto;font-size:12px;color:#bbb;">{{ review.created_at|date:"Y/m/d" }}</span>
+            </div>
+            {% if review.comment %}
+              <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 0 48px;">{{ review.comment }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color:#bbb;font-size:14px;">目前還沒有評論，成為第一個留言的人吧！</p>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+/* Variant radio visual */
+input[type="radio"].sr-only:checked + .peer-checked-variant {
+  border-color: #8f9b34;
+  background: #f5f7e8;
+  color: #8f9b34;
+  font-weight: 600;
+}
+.sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0; }
+
+/* Responsive 2-col → 1-col */
+@media (max-width: 680px) {
+  .md-product-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}登入 — 兔窩{% endblock %}
+
+{% block content %}
+<div style="min-height:70vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:#f8f8f8;">
+  <div style="width:100%;max-width:380px;">
+
+    <!-- Card -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:6px;overflow:hidden;">
+      <!-- Header -->
+      <div style="background:#8f9b34;padding:28px 32px;text-align:center;">
+        <div style="font-size:42px;margin-bottom:8px;">🐇</div>
+        <h1 style="color:#fff;font-size:20px;font-weight:700;margin:0 0 4px;">歡迎來到兔窩</h1>
+        <p style="color:rgba(255,255,255,.8);font-size:13px;margin:0;">為您的毛寶貝嚴選每一份食材</p>
+      </div>
+
+      <!-- Body -->
+      <div style="padding:32px;">
+        <p style="text-align:center;font-size:14px;color:#666;margin:0 0 24px;line-height:1.6;">
+          使用 LINE 帳號快速登入，<br>開始探索精選商品
+        </p>
+
+        <a href="/auth/line/"
+           style="display:flex;align-items:center;justify-content:center;gap:10px;
+                  background:#06c755;color:#fff;padding:13px 20px;
+                  border-radius:4px;font-size:15px;font-weight:700;text-decoration:none;
+                  transition:background .2s;"
+           onmouseover="this.style.background='#05b04c'" onmouseout="this.style.background='#06c755'">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+            <path d="M21.976 10.112C21.976 5.063 16.68 1 10.988 1 5.297 1 0 5.063 0 10.112c0 4.525 4.016 8.316 9.444 9.031.368.079.869.243.996.558.114.286.075.735.037 1.024l-.161 1c-.049.284-.226 1.112.975.607 1.199-.507 6.479-3.816 8.84-6.533h-.001C21.26 14.038 21.976 12.167 21.976 10.112z"/>
+          </svg>
+          使用 LINE 登入
+        </a>
+
+        <p style="text-align:center;margin:20px 0 0;font-size:12px;color:#bbb;line-height:1.6;">
+          登入即表示您同意我們的<br>
+          <a href="#" style="color:#8f9b34;text-decoration:none;">服務條款</a> 與
+          <a href="#" style="color:#8f9b34;text-decoration:none;">隱私政策</a>
+        </p>
+      </div>
+    </div>
+
+    <p style="text-align:center;margin-top:20px;font-size:13px;color:#aaa;">
+      <a href="/" style="color:#8f9b34;text-decoration:none;">← 返回首頁</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

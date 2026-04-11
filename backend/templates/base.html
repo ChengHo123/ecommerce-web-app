@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{% block title %}兔窩{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <style>
+    :root {
+      --brand:       #8f9b34;
+      --brand-hover: #afbe40;
+      --text:        #333333;
+      --text-mid:    #666666;
+      --bg-light:    #f8f8f8;
+      --border:      #e0e0e0;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { font-size: 15px; }
+    body {
+      font-family: 'Open Sans', 'Source Sans 3', 'Helvetica Neue', Arial, sans-serif;
+      color: #333;
+      background: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.6;
+    }
+    [x-cloak] { display: none !important; }
+    .line-clamp-2 { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+
+    /* Brand utilities */
+    .btn-brand {
+      display: inline-block;
+      background: #8f9b34;
+      color: #fff !important;
+      border: none;
+      cursor: pointer;
+      transition: background .2s;
+      text-decoration: none;
+    }
+    .btn-brand:hover { background: #afbe40; }
+    .text-brand { color: #8f9b34; }
+    a.text-brand:hover { color: #afbe40; }
+
+    /* Navbar */
+    .navbar-top-bar { height: 4px; background: #8f9b34; }
+    .navbar-wrap {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      height: 64px;
+      gap: 32px;
+    }
+    .navbar-logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #8f9b34;
+      text-decoration: none;
+      letter-spacing: -.3px;
+      white-space: nowrap;
+    }
+    .navbar-logo:hover { color: #afbe40; }
+    .navbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .navbar-nav a {
+      padding: 6px 12px;
+      font-size: 14px;
+      color: #555;
+      text-decoration: none;
+      border-radius: 4px;
+      transition: color .15s, background .15s;
+    }
+    .navbar-nav a:hover { color: #8f9b34; background: #f5f7e8; }
+    .navbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-left: auto;
+    }
+    .cart-icon-btn {
+      position: relative;
+      color: #555;
+      text-decoration: none;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      transition: color .15s, background .15s;
+    }
+    .cart-icon-btn:hover { color: #8f9b34; background: #f5f7e8; }
+    .cart-badge {
+      position: absolute;
+      top: -2px; right: -4px;
+      background: #8f9b34;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 17px; height: 17px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 4px;
+    }
+
+    /* Product card */
+    .product-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      text-decoration: none;
+      display: block;
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .product-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,.10);
+      border-color: #ccc;
+    }
+    .product-card:hover .product-img { transform: scale(1.04); }
+    .product-img-wrap {
+      aspect-ratio: 1;
+      overflow: hidden;
+      background: #f5f5f5;
+    }
+    .product-img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform .35s ease;
+    }
+    .product-img-placeholder {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      color: #bbb; font-size: 40px;
+    }
+    .product-info { padding: 12px 14px 14px; }
+    .product-name {
+      font-size: 13.5px;
+      color: #333;
+      line-height: 1.5;
+      margin: 0 0 8px;
+    }
+    .product-price-main { font-size: 15px; font-weight: 700; color: #8f9b34; }
+    .product-price-orig { font-size: 12px; color: #999; text-decoration: line-through; margin-left: 6px; }
+    .product-promo-tag {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-bottom: 5px;
+    }
+
+    /* Page container */
+    .page-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+    /* Section heading */
+    .section-heading {
+      font-size: 19px;
+      font-weight: 700;
+      color: #333;
+      margin: 0 0 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #8f9b34;
+      display: inline-block;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb { font-size: 13px; color: #999; margin-bottom: 20px; }
+    .breadcrumb a { color: #999; text-decoration: none; }
+    .breadcrumb a:hover { color: #8f9b34; }
+    .breadcrumb span { margin: 0 6px; }
+
+    /* Form inputs */
+    .form-input {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 9px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #333;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-input:focus { border-color: #8f9b34; box-shadow: 0 0 0 2px rgba(143,155,52,.15); }
+
+    /* Flash messages */
+    .flash-msg {
+      padding: 10px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .flash-msg.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .flash-msg.error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .flash-msg.warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .flash-msg.info    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+
+    /* Footer */
+    footer { background: #f8f8f8; border-top: 1px solid #e0e0e0; margin-top: auto; }
+
+    /* Pagination */
+    .pager { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 32px 0 8px; }
+    .pager a, .pager span {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 34px; height: 34px; padding: 0 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #555;
+      text-decoration: none;
+      transition: all .15s;
+    }
+    .pager a:hover { border-color: #8f9b34; color: #8f9b34; background: #f5f7e8; }
+    .pager span.active { background: #8f9b34; border-color: #8f9b34; color: #fff; font-weight: 600; }
+
+    /* Mobile nav drawer */
+    .mobile-drawer {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 200;
+    }
+    .mobile-drawer-panel {
+      position: absolute;
+      top: 0; right: 0;
+      width: 280px; height: 100%;
+      background: #fff;
+      overflow-y: auto;
+      box-shadow: -4px 0 20px rgba(0,0,0,.15);
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- Top brand bar -->
+<div class="navbar-top-bar"></div>
+
+<!-- Navbar -->
+<header class="navbar-wrap" x-data="{ mobileOpen: false }">
+  <div class="navbar-inner">
+    <a href="/" class="navbar-logo">🐇 兔窩</a>
+
+    <nav class="navbar-nav hidden md:flex">
+      <a href="/">首頁</a>
+      <a href="/products/">所有商品</a>
+    </nav>
+
+    <div class="navbar-actions">
+      {% if user.is_authenticated %}
+        <a href="/cart/" class="cart-icon-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 01-8 0"/>
+          </svg>
+          購物車
+          {% if cart_count > 0 %}<span class="cart-badge">{{ cart_count }}</span>{% endif %}
+        </a>
+
+        <div x-data="{ open: false }" class="relative hidden md:block">
+          <button @click="open = !open"
+                  class="flex items-center gap-2 text-sm text-gray-600 hover:text-brand px-3 py-1.5 rounded transition"
+                  style="--tw-text-opacity:1">
+            {% if user.avatar %}
+              <img src="{{ user.avatar }}" class="w-7 h-7 rounded-full object-cover">
+            {% else %}
+              <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                   style="background:#8f9b34;">{{ user.name|first }}</div>
+            {% endif %}
+            <span>{{ user.name }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+          </button>
+          <div x-show="open" @click.away="open = false" x-cloak
+               class="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded shadow-lg py-1 text-sm">
+            <a href="/orders/" class="block px-4 py-2 text-gray-700 hover:bg-gray-50">我的訂單</a>
+            <a href="/profile/" class="block px-4 py-2 text-gray-700 hover:bg-gray-50">個人資料</a>
+            {% if user.is_staff %}
+              <a href="/admin/" class="block px-4 py-2 text-gray-700 hover:bg-gray-50">管理後台</a>
+            {% endif %}
+            <div class="border-t my-1"></div>
+            <form method="post" action="/auth/logout/">
+              {% csrf_token %}
+              <button class="w-full text-left px-4 py-2 text-red-500 hover:bg-gray-50">登出</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <a href="/auth/login/" class="btn-brand hidden md:inline-block"
+           style="padding:7px 20px;border-radius:4px;font-size:14px;font-weight:600;">登入</a>
+      {% endif %}
+
+      <!-- Mobile hamburger -->
+      <button @click="mobileOpen = true" class="md:hidden text-gray-600 p-1">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Drawer -->
+  <div x-show="mobileOpen" x-cloak class="mobile-drawer" @click.self="mobileOpen = false">
+    <div class="mobile-drawer-panel">
+      <div style="background:#8f9b34;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="color:#fff;font-size:17px;font-weight:700;">兔窩</span>
+        <button @click="mobileOpen = false" style="color:#fff;background:none;border:none;cursor:pointer;font-size:22px;">×</button>
+      </div>
+      <nav style="padding:8px 0;">
+        <a href="/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">首頁</a>
+        <a href="/products/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">所有商品</a>
+        {% if user.is_authenticated %}
+          <a href="/cart/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">
+            購物車{% if cart_count > 0 %} ({{ cart_count }}){% endif %}
+          </a>
+          <a href="/orders/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">我的訂單</a>
+          <a href="/profile/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">個人資料</a>
+          {% if user.is_staff %}
+            <a href="/admin/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">管理後台</a>
+          {% endif %}
+          <form method="post" action="/auth/logout/" style="padding:12px 20px;">
+            {% csrf_token %}
+            <button style="color:#dc2626;background:none;border:none;cursor:pointer;font-size:15px;padding:0;font-family:inherit;">登出</button>
+          </form>
+        {% else %}
+          <a href="/auth/login/" style="display:block;padding:12px 20px;color:#8f9b34;font-size:15px;font-weight:600;text-decoration:none;">登入</a>
+        {% endif %}
+      </nav>
+    </div>
+  </div>
+</header>
+
+<!-- Flash Messages -->
+{% if messages %}
+  <div class="page-container" style="padding-top:16px;">
+    {% for message in messages %}
+      <div class="flash-msg {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<!-- Main content -->
+<main style="flex:1;">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- Footer -->
+<footer>
+  <div class="page-container" style="padding-top:36px;padding-bottom:36px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;margin-bottom:32px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#8f9b34;margin-bottom:10px;">🐇 兔窩</div>
+        <p style="font-size:13px;color:#666;line-height:1.7;">
+          兔窩，我們的相遇從來不是巧合。<br>
+          為您的毛寶貝嚴選每一份食材。
+        </p>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#333;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;">快速連結</div>
+        <ul style="list-style:none;padding:0;margin:0;">
+          <li style="margin-bottom:6px;"><a href="/" style="font-size:13px;color:#666;text-decoration:none;">首頁</a></li>
+          <li style="margin-bottom:6px;"><a href="/products/" style="font-size:13px;color:#666;text-decoration:none;">商品目錄</a></li>
+          <li style="margin-bottom:6px;"><a href="/auth/login/" style="font-size:13px;color:#666;text-decoration:none;">會員登入</a></li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#333;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;">客服</div>
+        <ul style="list-style:none;padding:0;margin:0;">
+          <li style="margin-bottom:6px;"><a href="#" style="font-size:13px;color:#666;text-decoration:none;">常見問題</a></li>
+          <li style="margin-bottom:6px;"><a href="#" style="font-size:13px;color:#666;text-decoration:none;">退換貨政策</a></li>
+          <li style="margin-bottom:6px;"><a href="#" style="font-size:13px;color:#666;text-decoration:none;">聯絡我們</a></li>
+        </ul>
+      </div>
+    </div>
+    <div style="border-top:1px solid #e0e0e0;padding-top:20px;text-align:center;font-size:12px;color:#999;">
+      © 2025 兔窩 TwoRabbits. 保留所有權利。
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

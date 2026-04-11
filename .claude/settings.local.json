@@ -3,7 +3,16 @@
     "allow": [
       "Bash(npm create:*)",
       "Bash(pip install:*)",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(python manage.py makemigrations accounts products orders cart coupons payments)",
+      "Bash(python manage.py migrate)",
+      "Bash(python:*)",
+      "WebFetch(domain:tworabbits.shoplineapp.com)",
+      "Bash(curl -s https://tworabbits.shoplineapp.com/)",
+      "Bash(curl -s \"https://cdn.shoplineapp.com/assets/themes/mint-4f4267db77b363e29684c482e8a52c8aca56528a5ea2207cb16e9917f0660c7e.css\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://cdn.shoplineapp.com/assets/common-898e3d282d673c037e3500beff4d8e9de2ee50e01c27252b33520348e0b17da0.css\")",
+      "Bash(grep -o \"#[0-9A-Fa-f]\\\\{3,6\\\\}\\\\|rgba\\\\\\([^\\)]*\\\\\\)\")"
     ]
   }
 }

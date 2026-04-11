@@ -1,0 +1,126 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}批量匯入商品{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="breadcrumbs">
+  <ul>
+    <li><a href="{% url 'admin:index' %}">首頁</a></li>
+    <li><a href="{% url 'admin:products_product_changelist' %}">商品</a></li>
+    <li>批量匯入</li>
+  </ul>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  {% if messages %}
+  <ul class="messagelist">
+    {% for message in messages %}
+    <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if result %}
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+    <h3 style="margin:0 0 12px;color:#166534;font-size:16px;font-weight:600;">匯入完成</h3>
+    <div style="display:flex;gap:32px;">
+      <div style="text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#16a34a;">{{ result.created }}</div>
+        <div style="font-size:13px;color:#15803d;">新增商品</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#2563eb;">{{ result.updated }}</div>
+        <div style="font-size:13px;color:#1d4ed8;">更新商品</div>
+      </div>
+      {% if result.errors %}
+      <div style="text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#dc2626;">{{ result.errors|length }}</div>
+        <div style="font-size:13px;color:#b91c1c;">錯誤</div>
+      </div>
+      {% endif %}
+    </div>
+    {% if result.errors %}
+    <div style="margin-top:16px;padding:12px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca;">
+      <div style="font-weight:600;color:#991b1b;margin-bottom:6px;">錯誤詳情（最多顯示 5 筆）：</div>
+      {% for err in result.errors|slice:":5" %}
+      <div style="color:#7f1d1d;font-size:13px;padding:2px 0;">{{ err }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:28px;max-width:600px;">
+    <h2 style="margin:0 0 6px;font-size:18px;font-weight:600;">上傳 Shopline Excel 檔案</h2>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+      支援 Shopline 批量更新格式（.xlsx / .xls），從第 3 列起匯入資料。
+    </p>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div id="drop-zone" style="
+        border:2px dashed #d1d5db;border-radius:8px;
+        padding:40px 20px;text-align:center;
+        cursor:pointer;transition:border-color .2s,background .2s;
+        margin-bottom:20px;
+      "
+        ondragover="event.preventDefault();this.style.borderColor='#2563eb';this.style.background='#eff6ff';"
+        ondragleave="this.style.borderColor='#d1d5db';this.style.background='';"
+        ondrop="handleDrop(event);"
+        onclick="document.getElementById('file-input').click();"
+      >
+        <div style="font-size:40px;margin-bottom:8px;">📊</div>
+        <div style="font-size:15px;font-weight:500;color:#374151;">
+          拖曳檔案至此，或
+          <span style="color:#2563eb;text-decoration:underline;">點擊選擇</span>
+        </div>
+        <div style="font-size:13px;color:#9ca3af;margin-top:4px;">.xlsx 或 .xls</div>
+        <div id="filename" style="margin-top:12px;font-size:14px;color:#059669;font-weight:500;"></div>
+      </div>
+      <input type="file" id="file-input" name="file" accept=".xlsx,.xls" required style="display:none;"
+             onchange="document.getElementById('filename').textContent = this.files[0]?.name || '';">
+
+      <div style="display:flex;gap:12px;align-items:center;">
+        <input type="submit" value="開始匯入"
+               class="default"
+               style="padding:10px 28px;font-size:15px;cursor:pointer;">
+        <a href="{% url 'admin:products_product_changelist' %}"
+           style="color:#6b7280;font-size:14px;text-decoration:none;">
+          取消，回到商品列表
+        </a>
+      </div>
+    </form>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6;">
+      <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">格式說明</div>
+      <ul style="margin:0;padding-left:18px;color:#6b7280;font-size:13px;line-height:1.8;">
+        <li>第 1 列：英文欄位名稱（勿修改）</li>
+        <li>第 2 列：中文欄位說明（勿修改）</li>
+        <li>第 3 列起：商品資料</li>
+        <li>庫存欄位填入「無限數量」代表不限庫存</li>
+        <li>變體價格填入「價格一致」代表沿用商品售價</li>
+        <li>同一商品的變體緊接在商品列下方（名稱欄空白）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').style.borderColor = '#d1d5db';
+  document.getElementById('drop-zone').style.background = '';
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  document.getElementById('file-input').files = dt.files;
+  document.getElementById('filename').textContent = file.name;
+}
+</script>
+{% endblock %}

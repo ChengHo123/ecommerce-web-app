@@ -22,5 +22,9 @@ Thumbs.db
 # Docker
 *.log
 
+# Django logs
+backend/logs/
+
 # File
+media/
 *.xlsx

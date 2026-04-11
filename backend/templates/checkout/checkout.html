@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% block title %}結帳 — 兔窩{% endblock %}
+
+{% block content %}
+<div style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;padding:12px 0;">
+  <div class="page-container breadcrumb">
+    <a href="/">首頁</a><span>/</span>
+    <a href="/cart/">購物車</a><span>/</span>
+    <span style="color:#333;">結帳</span>
+  </div>
+</div>
+
+<div class="page-container" style="padding-top:28px;padding-bottom:56px;"
+  x-data="checkoutApp()"
+  x-init="init()">
+
+  <h1 style="font-size:22px;font-weight:700;color:#333;margin:0 0 24px;">確認訂單</h1>
+
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;" class="checkout-layout">
+
+    <!-- ── Left: checkout form ── -->
+    <div>
+      <form method="post" action="/checkout/place/" id="checkout-form"
+            @submit.prevent="submitOrder">
+        {% csrf_token %}
+        <input type="hidden" name="logistics_type" x-model="logistics">
+        <input type="hidden" name="payment_method"  x-model="payment">
+        <input type="hidden" name="coupon_code"     x-model="couponCode">
+        <!-- CVS hidden fields (filled by store picker) -->
+        <input type="hidden" name="cvs_type"       x-model="cvsType">
+        <input type="hidden" name="cvs_store_id"   x-model="cvsStoreId">
+        <input type="hidden" name="cvs_store_name" x-model="cvsStoreName">
+
+        <!-- ① 配送方式 -->
+        <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:20px 24px;margin-bottom:14px;">
+          <h2 style="font-size:15px;font-weight:700;color:#333;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">配送方式</h2>
+          <div style="display:flex;gap:12px;">
+            <label style="flex:1;cursor:pointer;">
+              <input type="radio" x-model="logistics" value="home" class="sr-only">
+              <div :style="logistics==='home'
+                     ? 'border-color:#8f9b34;background:#f5f7e8;'
+                     : 'border-color:#ddd;background:#fff;'"
+                   style="border:2px solid;border-radius:4px;padding:14px 10px;text-align:center;transition:all .15s;cursor:pointer;">
+                <div style="font-size:22px;margin-bottom:4px;">🏠</div>
+                <div style="font-size:13px;font-weight:600;color:#333;">宅配到府</div>
+                <div style="font-size:11px;color:#999;margin-top:2px;">2–4 個工作天</div>
+              </div>
+            </label>
+            <label style="flex:1;cursor:pointer;">
+              <input type="radio" x-model="logistics" value="cvs" class="sr-only">
+              <div :style="logistics==='cvs'
+                     ? 'border-color:#8f9b34;background:#f5f7e8;'
+                     : 'border-color:#ddd;background:#fff;'"
+                   style="border:2px solid;border-radius:4px;padding:14px 10px;text-align:center;transition:all .15s;cursor:pointer;">
+                <div style="font-size:22px;margin-bottom:4px;">🏪</div>
+                <div style="font-size:13px;font-weight:600;color:#333;">超商取貨</div>
+                <div style="font-size:11px;color:#999;margin-top:2px;">3–5 個工作天</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- ② 宅配地址 -->
+        <div x-show="logistics === 'home'" x-cloak
+             style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:20px 24px;margin-bottom:14px;">
+          <h2 style="font-size:15px;font-weight:700;color:#333;margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">收件資訊</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:5px;">收件人 <span style="color:#dc2626;">*</span></label>
+              <input type="text" name="recipient" :required="logistics==='home'" class="form-input">
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:5px;">手機 <span style="color:#dc2626;">*</span></label>
+              <input type="text" name="phone" :required="logistics==='home'" placeholder="09xx-xxx-xxx" class="form-input">
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:5px;">郵遞區號</label>
+              <input type="text" name="zip_code" maxlength="6" class="form-input">
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:5px;">縣市 <span style="color:#dc2626;">*</span></label>
+              <input type="text" name="city" :required="logistics==='home'" class="form-input">
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:5px;">鄉鎮市區 <span style="color:#dc2626;">*</span></label>
+              <input type="text" name="district" :required="logistics==='home'" class="form-input">
+            </div>
+            <div style="grid-column:span 2;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:5px;">地址 <span style="color:#dc2626;">*</span></label>
+              <input type="text" name="address" :required="logistics==='home'" class="form-input">
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 超商取貨 -->
+        <div x-show="logistics === 'cvs'" x-cloak
+             style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:20px 24px;margin-bottom:14px;">
+          <h2 style="font-size:15px;font-weight:700;color:#333;margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">選擇超商門市</h2>
+
+          <!-- CVS type selector -->
+          <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
+            <template x-for="cvs in cvsOptions" :key="cvs.value">
+              <label style="cursor:pointer;">
+                <input type="radio" x-model="cvsType" :value="cvs.value" class="sr-only">
+                <div :style="cvsType===cvs.value
+                       ? 'border-color:#8f9b34;background:#f5f7e8;color:#8f9b34;font-weight:700;'
+                       : 'border-color:#ddd;background:#fff;color:#555;'"
+                     style="border:1.5px solid;border-radius:4px;padding:8px 18px;font-size:13px;transition:all .15s;cursor:pointer;"
+                     x-text="cvs.label">
+                </div>
+              </label>
+            </template>
+          </div>
+
+          <!-- Open map button -->
+          <button type="button" @click="openCvsMap()"
+                  style="display:inline-flex;align-items:center;gap:8px;
+                         background:#8f9b34;color:#fff;border:none;cursor:pointer;
+                         padding:10px 22px;border-radius:4px;font-size:14px;font-weight:600;
+                         transition:background .15s;"
+                  onmouseover="this.style.background='#afbe40'" onmouseout="this.style.background='#8f9b34'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            選擇門市
+          </button>
+
+          <!-- Selected store card -->
+          <div x-show="cvsStoreId" x-cloak
+               style="margin-top:16px;background:#f5f7e8;border:1.5px solid #8f9b34;border-radius:4px;padding:14px 16px;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+              <div>
+                <div style="font-size:14px;font-weight:700;color:#333;" x-text="cvsStoreName"></div>
+                <div style="font-size:12px;color:#666;margin-top:3px;" x-text="cvsAddress"></div>
+                <div style="font-size:11px;color:#8f9b34;margin-top:4px;"
+                     x-text="cvsTypeLabel + ' · 門市代號：' + cvsStoreId"></div>
+              </div>
+              <button type="button" @click="clearCvsStore()"
+                      style="background:none;border:none;color:#bbb;cursor:pointer;font-size:18px;line-height:1;padding:0;flex-shrink:0;"
+                      title="重新選擇" onmouseover="this.style.color='#555'" onmouseout="this.style.color='#bbb'">×</button>
+            </div>
+          </div>
+
+          <!-- Waiting indicator -->
+          <div x-show="cvsMapOpen && !cvsStoreId" x-cloak
+               style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px;color:#888;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8f9b34" stroke-width="2"
+                 style="animation:spin .8s linear infinite;">
+              <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity=".2"/>
+              <path d="M12 3a9 9 0 019 9"/>
+            </svg>
+            等待您在地圖視窗選擇門市…
+          </div>
+
+          <!-- Require store before submit -->
+          <div x-show="logistics==='cvs' && cvsSubmitError" x-cloak
+               style="margin-top:10px;color:#dc2626;font-size:13px;">
+            ⚠️ 請先選擇超商門市
+          </div>
+        </div>
+
+        <!-- ④ 付款方式 -->
+        <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:20px 24px;margin-bottom:14px;">
+          <h2 style="font-size:15px;font-weight:700;color:#333;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;">付款方式</h2>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <label style="flex:1;min-width:120px;cursor:pointer;">
+              <input type="radio" x-model="payment" value="linepay" class="sr-only">
+              <div :style="payment==='linepay'
+                     ? 'border-color:#06c755;background:#f0fff4;'
+                     : 'border-color:#ddd;background:#fff;'"
+                   style="border:2px solid;border-radius:4px;padding:14px 10px;text-align:center;transition:all .15s;cursor:pointer;">
+                <div style="font-size:20px;margin-bottom:4px;">💚</div>
+                <div style="font-size:13px;font-weight:600;color:#333;">LINE Pay</div>
+              </div>
+            </label>
+            <label style="flex:1;min-width:120px;cursor:pointer;">
+              <input type="radio" x-model="payment" value="stripe" class="sr-only">
+              <div :style="payment==='stripe'
+                     ? 'border-color:#635bff;background:#f5f4ff;'
+                     : 'border-color:#ddd;background:#fff;'"
+                   style="border:2px solid;border-radius:4px;padding:14px 10px;text-align:center;transition:all .15s;cursor:pointer;">
+                <div style="font-size:20px;margin-bottom:4px;">💳</div>
+                <div style="font-size:13px;font-weight:600;color:#333;">信用卡</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- ⑤ 備註 -->
+        <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:20px 24px;margin-bottom:20px;">
+          <h2 style="font-size:15px;font-weight:700;color:#333;margin:0 0 12px;">備註</h2>
+          <textarea name="buyer_note" rows="3" placeholder="有任何特殊需求請告訴我們…"
+                    style="width:100%;border:1px solid #ddd;border-radius:4px;padding:9px 12px;
+                           font-size:14px;font-family:inherit;resize:none;outline:none;
+                           transition:border-color .15s;box-sizing:border-box;"
+                    onfocus="this.style.borderColor='#8f9b34'" onblur="this.style.borderColor='#ddd'"></textarea>
+        </div>
+
+        <button type="submit"
+                class="btn-brand"
+                style="width:100%;padding:15px;font-size:16px;font-weight:700;border-radius:4px;letter-spacing:.3px;">
+          確認下單並付款
+        </button>
+      </form>
+    </div>
+
+    <!-- ── Right: order summary ── -->
+    <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden;position:sticky;top:80px;">
+      <div style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;padding:14px 18px;">
+        <span style="font-size:15px;font-weight:700;color:#333;">訂單摘要</span>
+      </div>
+      <div style="padding:16px 18px;">
+        {% for item in items %}
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;margin-bottom:8px;gap:8px;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ item.product.name_zh|default:item.product.name }}
+              <span style="color:#aaa;">×{{ item.quantity }}</span>
+            </span>
+            <span style="flex-shrink:0;font-weight:600;">${{ item.subtotal }}</span>
+          </div>
+        {% endfor %}
+
+        <!-- Coupon -->
+        <div style="border-top:1px solid #f0f0f0;margin-top:12px;padding-top:14px;">
+          <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">優惠券</div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" x-model="couponCode" placeholder="輸入優惠碼"
+                   class="form-input" style="flex:1;">
+            <button type="button" @click="validateCoupon()"
+                    style="background:#f5f5f5;border:1px solid #ddd;border-radius:4px;
+                           padding:0 14px;font-size:13px;cursor:pointer;white-space:nowrap;
+                           transition:background .15s;"
+                    onmouseover="this.style.background='#e8e8e8'" onmouseout="this.style.background='#f5f5f5'">
+              套用
+            </button>
+          </div>
+          <p x-show="discount > 0" x-cloak
+             style="font-size:12px;color:#16a34a;margin:6px 0 0;">
+            已折抵 $<span x-text="discount.toFixed(0)"></span>
+          </p>
+          <p x-show="couponError" x-cloak
+             style="font-size:12px;color:#dc2626;margin:6px 0 0;" x-text="couponError"></p>
+        </div>
+
+        <!-- Totals -->
+        <div style="border-top:1px solid #f0f0f0;margin-top:14px;padding-top:14px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:6px;">
+            <span>小計</span><span>${{ cart.total }}</span>
+          </div>
+          <div x-show="discount > 0" x-cloak
+               style="display:flex;justify-content:space-between;font-size:13px;color:#16a34a;margin-bottom:6px;">
+            <span>折扣</span><span>-$<span x-text="discount.toFixed(0)"></span></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#333;margin-top:8px;padding-top:10px;border-top:1px solid #e0e0e0;">
+            <span>合計</span>
+            <span style="color:#8f9b34;">$<span x-text="(total - discount).toFixed(0)"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0; }
+@media (max-width:700px) { .checkout-layout { grid-template-columns:1fr !important; } }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+
+<script>
+function checkoutApp() {
+  return {
+    logistics:  'home',
+    payment:    'linepay',
+    couponCode: '',
+    discount:   0,
+    total:      {{ cart.total }},
+    couponError: '',
+
+    // CVS
+    cvsType:       'UNIMART',
+    cvsStoreId:    '',
+    cvsStoreName:  '',
+    cvsAddress:    '',
+    cvsMapOpen:    false,
+    cvsSubmitError: false,
+    cvsTradeNo:    '',
+    cvsPollTimer:  null,
+
+    cvsOptions: [
+      { value: 'UNIMART', label: '7-ELEVEN' },
+      { value: 'FAMI',    label: '全家' },
+      { value: 'HILIFE',  label: '萊爾富' },
+    ],
+
+    get cvsTypeLabel() {
+      const found = this.cvsOptions.find(c => c.value === this.cvsType);
+      return found ? found.label : this.cvsType;
+    },
+
+    init() {
+      // Listen for postMessage from popup
+      window.addEventListener('message', (e) => {
+        if (e.data && e.data.type === 'cvs_store_selected') {
+          this.applyStore(e.data.store, e.data.tradeNo);
+        }
+      });
+    },
+
+    openCvsMap() {
+      const url = `/checkout/cvs-map/?cvs_type=${this.cvsType}`;
+      const popup = window.open(url, 'cvsmap',
+        'width=1024,height=700,scrollbars=yes,resizable=yes');
+
+      if (!popup) {
+        alert('請允許彈出視窗以選擇門市。');
+        return;
+      }
+
+      this.cvsMapOpen = true;
+      this.cvsStoreId = '';
+      this.cvsStoreName = '';
+      this.cvsAddress = '';
+
+      // Also poll API as fallback (postMessage may fail cross-origin)
+      // We'll get the trade_no from the first poll response implicitly via
+      // an initial request that embeds the trade_no in the popup URL.
+      // For now rely on postMessage; polling handled after tradeNo is set.
+    },
+
+    applyStore(store, tradeNo) {
+      this.cvsStoreId   = store.cvs_store_id   || '';
+      this.cvsStoreName = store.cvs_store_name  || '';
+      this.cvsAddress   = store.cvs_address     || '';
+      this.cvsTradeNo   = tradeNo || '';
+      this.cvsMapOpen   = false;
+      this.cvsSubmitError = false;
+      clearInterval(this.cvsPollTimer);
+    },
+
+    clearCvsStore() {
+      this.cvsStoreId = '';
+      this.cvsStoreName = '';
+      this.cvsAddress = '';
+      this.cvsTradeNo = '';
+      this.cvsMapOpen = false;
+    },
+
+    async validateCoupon() {
+      this.couponError = '';
+      if (!this.couponCode) return;
+      const form = new FormData();
+      form.append('code', this.couponCode);
+      form.append('total', this.total);
+      form.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+      const resp = await fetch('/coupons/validate/', { method: 'POST', body: form });
+      const data = await resp.json();
+      if (data.valid) {
+        this.discount = data.discount;
+      } else {
+        this.discount = 0;
+        this.couponError = data.message;
+      }
+    },
+
+    submitOrder(e) {
+      // Validate CVS store is selected when CVS logistics
+      if (this.logistics === 'cvs' && !this.cvsStoreId) {
+        this.cvsSubmitError = true;
+        document.querySelector('[x-show="logistics === \'cvs\'"]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      this.cvsSubmitError = false;
+      e.target.submit();
+    }
+  }
+}
+</script>
+{% endblock %}

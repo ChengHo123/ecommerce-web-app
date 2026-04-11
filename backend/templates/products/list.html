@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if selected_category %}{{ selected_category.name }} — {% endif %}商品目錄 — 兔窩
+{% endblock %}
+
+{% block content %}
+<div style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;padding:12px 0;">
+  <div class="page-container breadcrumb">
+    <a href="/">首頁</a><span>/</span>
+    <a href="/products/">商品目錄</a>
+    {% if selected_category %}<span>/</span><span style="color:#333;">{{ selected_category.name }}</span>{% endif %}
+  </div>
+</div>
+
+<div class="page-container" style="padding-top:28px;padding-bottom:48px;">
+  <div style="display:flex;gap:28px;align-items:flex-start;">
+
+    <!-- Sidebar -->
+    <aside style="width:200px;flex-shrink:0;" class="hidden md:block">
+      <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden;">
+        <div style="background:#8f9b34;padding:12px 16px;">
+          <span style="color:#fff;font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;">商品分類</span>
+        </div>
+        <nav style="padding:8px 0;">
+          <a href="/products/"
+             style="display:block;padding:9px 16px;font-size:14px;text-decoration:none;
+                    {% if not selected_category %}background:#f5f7e8;color:#8f9b34;font-weight:600;border-left:3px solid #8f9b34;{% else %}color:#555;border-left:3px solid transparent;{% endif %}
+                    transition:all .15s;"
+             {% if not selected_category %}{% else %}
+             onmouseover="this.style.background='#fafafa';this.style.color='#8f9b34';"
+             onmouseout="this.style.background='';this.style.color='#555';"{% endif %}>
+            全部商品
+          </a>
+          {% for cat in categories %}
+            <a href="/products/?category={{ cat.slug }}"
+               style="display:block;padding:9px 16px;font-size:14px;text-decoration:none;
+                      {% if selected_category.slug == cat.slug %}background:#f5f7e8;color:#8f9b34;font-weight:600;border-left:3px solid #8f9b34;{% else %}color:#555;border-left:3px solid transparent;{% endif %}
+                      transition:all .15s;"
+               {% if selected_category.slug != cat.slug %}
+               onmouseover="this.style.background='#fafafa';this.style.color='#8f9b34';"
+               onmouseout="this.style.background='';this.style.color='#555';"{% endif %}>
+              {{ cat.name }}
+            </a>
+          {% endfor %}
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div style="flex:1;min-width:0;">
+
+      <!-- Top bar: title + search -->
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;">
+        <div>
+          <h1 style="font-size:20px;font-weight:700;color:#333;margin:0 0 2px;">
+            {% if selected_category %}{{ selected_category.name }}{% else %}全部商品{% endif %}
+          </h1>
+          <p style="font-size:13px;color:#999;margin:0;">共 {{ page.paginator.count }} 件商品</p>
+        </div>
+        <form method="get" action="/products/" style="display:flex;gap:8px;">
+          {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category.slug }}">{% endif %}
+          <input type="text" name="q" value="{{ search }}" placeholder="搜尋商品..."
+                 class="form-input" style="width:200px;">
+          <button type="submit" class="btn-brand"
+                  style="padding:9px 18px;border-radius:4px;font-size:14px;font-weight:600;white-space:nowrap;">
+            搜尋
+          </button>
+        </form>
+      </div>
+
+      <!-- Mobile category pills -->
+      <div class="md:hidden" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;margin-bottom:16px;-webkit-overflow-scrolling:touch;">
+        <a href="/products/"
+           style="flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:13px;text-decoration:none;white-space:nowrap;
+                  {% if not selected_category %}background:#8f9b34;color:#fff;{% else %}background:#fff;color:#555;border:1px solid #ddd;{% endif %}">
+          全部
+        </a>
+        {% for cat in categories %}
+          <a href="/products/?category={{ cat.slug }}"
+             style="flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:13px;text-decoration:none;white-space:nowrap;
+                    {% if selected_category.slug == cat.slug %}background:#8f9b34;color:#fff;{% else %}background:#fff;color:#555;border:1px solid #ddd;{% endif %}">
+            {{ cat.name }}
+          </a>
+        {% endfor %}
+      </div>
+
+      <!-- Product Grid -->
+      {% if page.object_list %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:16px;">
+          {% for product in page %}
+            <a href="/products/{{ product.slug }}/" class="product-card">
+              <div class="product-img-wrap">
+                {% if product.first_image %}
+                  <img src="{{ product.first_image }}" alt="{{ product.name_zh|default:product.name }}" class="product-img">
+                {% else %}
+                  <div class="product-img-placeholder">🐇</div>
+                {% endif %}
+              </div>
+              <div class="product-info">
+                {% if product.promo_label_zh %}
+                  <div class="product-promo-tag">{{ product.promo_label_zh }}</div>
+                {% endif %}
+                <p class="product-name line-clamp-2">{{ product.name_zh|default:product.name }}</p>
+                {% if not product.hide_price %}
+                  <div style="display:flex;align-items:baseline;gap:4px;margin-top:6px;">
+                    {% if product.sale_price %}
+                      <span class="product-price-main">${{ product.sale_price }}</span>
+                      <span class="product-price-orig">${{ product.base_price }}</span>
+                    {% else %}
+                      <span class="product-price-main">${{ product.base_price }}</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+                {% if not product.is_available %}
+                  <div style="margin-top:5px;font-size:11px;color:#999;">已售完</div>
+                {% endif %}
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="text-align:center;padding:64px 20px;color:#999;">
+          <div style="font-size:48px;margin-bottom:12px;">🔍</div>
+          <p style="font-size:15px;">找不到符合「{{ search }}」的商品</p>
+          <a href="/products/" style="color:#8f9b34;font-size:14px;text-decoration:none;margin-top:8px;display:inline-block;">清除搜尋</a>
+        </div>
+      {% endif %}
+
+      <!-- Pagination -->
+      {% if page.has_other_pages %}
+        <div class="pager">
+          {% if page.has_previous %}
+            <a href="?page={{ page.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category.slug }}{% endif %}">← 上頁</a>
+          {% endif %}
+          {% for num in page.paginator.page_range %}
+            {% if page.number == num %}
+              <span class="active">{{ num }}</span>
+            {% elif num > page.number|add:-3 and num < page.number|add:3 %}
+              <a href="?page={{ num }}{% if search %}&q={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category.slug }}{% endif %}">{{ num }}</a>
+            {% endif %}
+          {% endfor %}
+          {% if page.has_next %}
+            <a href="?page={{ page.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if selected_category %}&category={{ selected_category.slug }}{% endif %}">下頁 →</a>
+          {% endif %}
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

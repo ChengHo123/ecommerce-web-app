@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}兔窩 TwoRabbits — 為毛寶貝嚴選每一份食材{% endblock %}
+
+{% block content %}
+
+<!-- Hero Banner -->
+<section style="background:linear-gradient(135deg,#8f9b34 0%,#afbe40 60%,#c8d45a 100%);padding:64px 20px;">
+  <div style="max-width:860px;margin:0 auto;display:flex;align-items:center;gap:48px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:260px;">
+      <p style="color:rgba(255,255,255,.8);font-size:13px;letter-spacing:2px;text-transform:uppercase;margin:0 0 12px;">Natural &amp; Premium</p>
+      <h1 style="color:#fff;font-size:clamp(26px,4vw,42px);font-weight:700;line-height:1.2;margin:0 0 16px;">
+        為毛寶貝<br>嚴選每一份食材
+      </h1>
+      <p style="color:rgba(255,255,255,.9);font-size:15px;margin:0 0 28px;line-height:1.7;">
+        兔窩精選天然果乾、牧草與優質飼料，<br>讓每一口都充滿對生命的愛與用心。
+      </p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <a href="/products/" style="background:#fff;color:#8f9b34;padding:12px 28px;border-radius:4px;font-weight:700;font-size:14px;text-decoration:none;transition:background .2s;"
+           onmouseover="this.style.background='#f5f7e8'" onmouseout="this.style.background='#fff'">
+          立即選購
+        </a>
+        <a href="/products/" style="background:rgba(255,255,255,.15);color:#fff;padding:12px 28px;border-radius:4px;font-weight:600;font-size:14px;text-decoration:none;border:1.5px solid rgba(255,255,255,.5);transition:background .2s;"
+           onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
+          認識兔窩
+        </a>
+      </div>
+    </div>
+    <div style="font-size:120px;line-height:1;opacity:.9;">🐇</div>
+  </div>
+</section>
+
+<!-- USP Strip -->
+<section style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;">
+  <div class="page-container">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;">
+      {% for icon, title, desc in usp_items|default:"" %}{% endfor %}
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-right:1px solid #e8e8e8;">
+        <span style="font-size:24px;">🌿</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#333;">天然食材</div>
+          <div style="font-size:12px;color:#888;">無添加防腐劑</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-right:1px solid #e8e8e8;">
+        <span style="font-size:24px;">🚚</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#333;">快速出貨</div>
+          <div style="font-size:12px;color:#888;">訂單 48 小時內出貨</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-right:1px solid #e8e8e8;">
+        <span style="font-size:24px;">💳</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#333;">多元支付</div>
+          <div style="font-size:12px;color:#888;">LINE Pay / 信用卡</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+        <span style="font-size:24px;">🛡️</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#333;">品質保證</div>
+          <div style="font-size:12px;color:#888;">嚴格把關每批原料</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Categories -->
+{% if categories %}
+<section style="padding:48px 0 32px;">
+  <div class="page-container">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px;">
+      <h2 class="section-heading" style="margin-bottom:0;">商品分類</h2>
+      <a href="/products/" style="font-size:13px;color:#8f9b34;text-decoration:none;">查看全部 →</a>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      {% for cat in categories %}
+        <a href="/products/?category={{ cat.slug }}"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border:1.5px solid #ddd;border-radius:30px;font-size:13px;color:#555;text-decoration:none;background:#fff;transition:all .2s;white-space:nowrap;"
+           onmouseover="this.style.borderColor='#8f9b34';this.style.color='#8f9b34';this.style.background='#f5f7e8';"
+           onmouseout="this.style.borderColor='#ddd';this.style.color='#555';this.style.background='#fff';">
+          {{ cat.name }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- Featured Products -->
+<section style="padding:8px 0 56px;">
+  <div class="page-container">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px;">
+      <h2 class="section-heading" style="margin-bottom:0;">精選商品</h2>
+      <a href="/products/" style="font-size:13px;color:#8f9b34;text-decoration:none;">查看全部 →</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
+      {% for product in featured %}
+        <a href="/products/{{ product.slug }}/" class="product-card">
+          <div class="product-img-wrap">
+            {% if product.first_image %}
+              <img src="{{ product.first_image }}" alt="{{ product.name_zh|default:product.name }}" class="product-img">
+            {% else %}
+              <div class="product-img-placeholder">🐇</div>
+            {% endif %}
+          </div>
+          <div class="product-info">
+            {% if product.promo_label_zh %}
+              <div class="product-promo-tag">{{ product.promo_label_zh }}</div>
+            {% endif %}
+            <p class="product-name line-clamp-2">{{ product.name_zh|default:product.name }}</p>
+            <div style="display:flex;align-items:baseline;gap:4px;">
+              {% if product.sale_price %}
+                <span class="product-price-main">${{ product.sale_price }}</span>
+                <span class="product-price-orig">${{ product.base_price }}</span>
+              {% else %}
+                <span class="product-price-main">${{ product.base_price }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+      {% empty %}
+        <p style="grid-column:1/-1;text-align:center;color:#999;padding:48px 0;">目前沒有商品</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Brand Story Banner -->
+<section style="background:#f5f7e8;border-top:1px solid #e5ea9c;border-bottom:1px solid #e5ea9c;padding:48px 20px;">
+  <div style="max-width:700px;margin:0 auto;text-align:center;">
+    <div style="font-size:40px;margin-bottom:16px;">🌿</div>
+    <h2 style="font-size:22px;font-weight:700;color:#333;margin:0 0 14px;">我們對「吃」有著近乎偏執的堅持</h2>
+    <p style="font-size:14px;color:#666;line-height:1.9;margin:0 0 24px;">
+      在兔窩，每一樣商品都經過嚴格審核。我們相信，最好的愛，<br>是給毛寶貝吃得安心、吃得開心。
+    </p>
+    <a href="/products/" class="btn-brand" style="padding:11px 32px;border-radius:4px;font-size:14px;font-weight:600;">探索商品</a>
+  </div>
+</section>
+
+{% endblock %}
