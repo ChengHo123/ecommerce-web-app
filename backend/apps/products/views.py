@@ -168,17 +168,41 @@ def _parse_str(val) -> str | None:
     return s or None
 
 
-def _get_or_create_category(name: str) -> Category | None:
+def _get_or_create_category(name: str, parent: "Category | None" = None) -> "Category | None":
     """Find or create a category by name. Returns None if name is empty."""
     name = name.strip()
     if not name:
         return None
-    slug = _slugify(name)
+    slug = _slugify(name) or name.lower()  # fallback to name for non-ASCII (e.g. Chinese)
     cat, _ = Category.objects.get_or_create(
         slug=slug,
-        defaults={"name": name},
+        defaults={"name": name, "parent": parent},
     )
     return cat
+
+
+def _build_category_hierarchy(cats_raw: str) -> "Category | None":
+    """
+    Parse a newline-separated Shopline category string and build parent-child
+    relationships.  Shopline lists categories from most-specific → most-general,
+    e.g. "兔兔飼料\n全部商品\n首頁" means 首頁 > 全部商品 > 兔兔飼料.
+    Returns the most-specific (leaf) category.
+    """
+    _SKIP = {"Featured Products", "首頁"}
+    cat_list = [c.strip() for c in str(cats_raw).split("\n") if c.strip()]
+    filtered = [c for c in cat_list if c and not c.startswith("SL_") and c not in _SKIP]
+    if not filtered:
+        return None
+
+    # Shopline order: [leaf, ..., root] → reverse to build top-down
+    ordered = list(reversed(filtered))
+
+    parent = None
+    leaf = None
+    for name in ordered:
+        leaf = _get_or_create_category(name, parent=parent)
+        parent = leaf
+    return leaf
 
 
 def _unique_slug(base: str) -> str:
@@ -300,16 +324,11 @@ def bulk_import(request):
             tags_raw = _col(row, "tags")
             tags = [t.strip() for t in str(tags_raw).split("\n") if t.strip()] if tags_raw else []
 
-            # Categories: take first non-"Featured Products" entry, create if needed
+            # Categories: build full parent-child hierarchy from Shopline multi-line format
             category = None
             cats_raw = _col(row, "categories")
             if cats_raw:
-                cat_list = [c.strip() for c in str(cats_raw).split("\n") if c.strip()]
-                # prefer non-English / non-Shopline-internal entries
-                preferred = [c for c in cat_list if c and c != "Featured Products" and not c.startswith("SL_")]
-                cat_name = preferred[0] if preferred else (cat_list[0] if cat_list else None)
-                if cat_name:
-                    category = _get_or_create_category(cat_name)
+                category = _build_category_hierarchy(str(cats_raw))
 
             # Date fields
             pub = _col(row, "publish_at")

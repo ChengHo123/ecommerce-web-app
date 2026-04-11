@@ -1,6 +1,7 @@
 import logging
 from django import forms
 from django.contrib import admin
+from django.shortcuts import render
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -40,11 +41,102 @@ class ProductAdminForm(forms.ModelForm):
 
 @admin.register(Category)
 class CategoryAdmin(ModelAdmin):
-    list_display = ("name", "slug", "parent", "sort_order")
-    list_editable = ("sort_order",)
+    list_display = ("drag_handle", "name", "slug", "parent", "sort_order")
     search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
-    list_per_page = 30
+    list_per_page = 100
+
+    class Media:
+        js = ("admin/js/sortable.min.js", "admin/js/category_sort.js")
+        css = {"all": ("admin/css/category_sort.css",)}
+
+    def get_queryset(self, request):
+        from django.db.models import Case, When, IntegerField
+        qs = super().get_queryset(request)
+        # build hierarchical order: each parent followed by its children
+        top_level = list(qs.filter(parent=None).order_by('sort_order', 'name'))
+        ordered = []
+        for cat in top_level:
+            ordered.append(cat.pk)
+            for child in qs.filter(parent=cat).order_by('sort_order', 'name'):
+                ordered.append(child.pk)
+        preserved = Case(
+            *[When(pk=pk, then=pos) for pos, pk in enumerate(ordered)],
+            output_field=IntegerField(),
+        )
+        return qs.annotate(_order=preserved).order_by('_order')
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom = [
+            path(
+                "reorder/save/",
+                self.admin_site.admin_view(self.reorder_save),
+                name="products_category_reorder_save",
+            ),
+            path(
+                "parent/save/",
+                self.admin_site.admin_view(self.parent_save),
+                name="products_category_parent_save",
+            ),
+        ]
+        return custom + urls
+
+    @display(description="")
+    def drag_handle(self, obj):
+        parent_id = obj.parent_id or ""
+        has_children = "1" if obj.children.exists() else "0"
+        # both buttons hidden by default — JS updateVisibility() shows the right one
+        return format_html(
+            '<span class="cat-row-controls" data-id="{}" data-parent-id="{}" data-has-children="{}">'
+            '<span class="drag-handle" title="拖曳排序">'
+            '<span class="material-symbols-outlined">drag_indicator</span>'
+            '</span>'
+            '<button class="indent-btn" title="縮排為子類別" type="button" style="display:none">'
+            '<span class="material-symbols-outlined">chevron_right</span></button>'
+            '<button class="outdent-btn" title="移至頂層" type="button" style="display:none">'
+            '<span class="material-symbols-outlined">chevron_left</span></button>'
+            '</span>',
+            obj.pk, parent_id, has_children,
+        )
+
+    def reorder_save(self, request):
+        import json
+        from django.http import JsonResponse
+        if request.method != "POST":
+            return JsonResponse({"error": "method not allowed"}, status=405)
+        try:
+            data = json.loads(request.body)
+            for item in data:
+                Category.objects.filter(pk=item["id"]).update(sort_order=item["order"])
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    def parent_save(self, request):
+        import json
+        from django.http import JsonResponse
+        if request.method != "POST":
+            return JsonResponse({"error": "method not allowed"}, status=405)
+        try:
+            data = json.loads(request.body)
+            cat_id = data["id"]
+            parent_id = data.get("parent_id")  # None = top-level
+            if parent_id:
+                parent = Category.objects.get(pk=parent_id)
+                if parent.pk == cat_id:
+                    return JsonResponse({"error": "cannot set self as parent"}, status=400)
+                # enforce max 2 levels: parent must be top-level
+                if parent.parent_id:
+                    return JsonResponse({"error": "max 2 levels allowed"}, status=400)
+            # enforce max 2 levels: can't move a category that has children
+            if parent_id and Category.objects.filter(parent_id=cat_id).exists():
+                return JsonResponse({"error": "cannot nest a category that has children"}, status=400)
+            Category.objects.filter(pk=cat_id).update(parent_id=parent_id)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
 
 class ProductImageInline(TabularInline):

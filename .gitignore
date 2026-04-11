@@ -27,4 +27,4 @@ backend/logs/
 
 # File
 media/
-*.xlsx
+*.xlsxbackend/staticfiles/
