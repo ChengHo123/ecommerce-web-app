@@ -104,6 +104,10 @@
       padding: 6px 10px;
       border-radius: 4px;
       transition: color .15s, background .15s;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
     }
     .cart-icon-btn:hover { color: #8f9b34; background: #f5f7e8; }
     .cart-badge {
@@ -138,6 +142,7 @@
       aspect-ratio: 1;
       overflow: hidden;
       background: #f5f5f5;
+      position: relative;
     }
     .product-img {
       width: 100%; height: 100%;
@@ -167,6 +172,24 @@
       border-radius: 3px;
       margin-bottom: 5px;
     }
+
+    /* Quick-add hover button on product cards */
+    .quick-add-btn {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(143,155,52,0.93);
+      color: #fff;
+      border: none;
+      padding: 9px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transform: translateY(100%);
+      transition: transform .22s ease;
+      letter-spacing: .2px;
+      font-family: inherit;
+    }
+    .product-card:hover .quick-add-btn { transform: translateY(0); }
 
     /* Page container */
     .page-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
@@ -214,6 +237,10 @@
     .flash-msg.warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
     .flash-msg.info    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 
+    /* Toast */
+    .toast-success { background: #1a6b3a; color: #fff; }
+    .toast-error   { background: #9b1c1c; color: #fff; }
+
     /* Footer */
     footer { background: #f8f8f8; border-top: 1px solid #e0e0e0; margin-top: auto; }
 
@@ -249,14 +276,192 @@
     }
   </style>
   {% block extra_head %}{% endblock %}
+
+  <!-- Global JS helpers (before Alpine so functions are ready on alpine:init) -->
+  <script>
+    function getCsrf() {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : '';
+    }
+
+    function showToast(msg, type) {
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { msg, type: type || 'success' } }));
+    }
+
+    /* AJAX add-to-cart used by the quick-add button on product listing */
+    async function addToCart(productId, hasVariants, productUrl) {
+      if (hasVariants) { window.location.href = productUrl; return; }
+      try {
+        const res = await fetch('/cart/add/' + productId + '/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCsrf(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'quantity=1',
+        });
+        if (!res.ok) throw new Error('http ' + res.status);
+        const d = await res.json();
+        if (d.ok) {
+          showToast(d.product_name + ' 已加入購物車');
+          window.dispatchEvent(new CustomEvent('cart-count-updated', { detail: { count: d.cart_count } }));
+        }
+      } catch {
+        showToast('加入失敗，請稍後再試', 'error');
+      }
+    }
+
+    /* AJAX add-to-cart from the product detail form (supports variants + quantity) */
+    async function submitAddToCart(form) {
+      const productId = form.dataset.productId;
+      const body = new URLSearchParams(new FormData(form));
+      body.delete('csrfmiddlewaretoken');
+      try {
+        const res = await fetch('/cart/add/' + productId + '/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCsrf(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: body.toString(),
+        });
+        if (!res.ok) throw new Error('http ' + res.status);
+        const d = await res.json();
+        if (d.ok) {
+          showToast(d.product_name + ' 已加入購物車 ✓');
+          window.dispatchEvent(new CustomEvent('cart-count-updated', { detail: { count: d.cart_count } }));
+          window.dispatchEvent(new CustomEvent('open-cart'));
+        }
+      } catch {
+        showToast('加入失敗，請稍後再試', 'error');
+      }
+    }
+
+    /* Alpine component: toast stack */
+    function toastSystem() {
+      return {
+        toasts: [],
+        show(msg, type) {
+          const id = Date.now() + Math.random();
+          this.toasts.push({ id, msg, type: type || 'success', visible: true });
+          setTimeout(() => this.dismiss(id), 3500);
+        },
+        dismiss(id) {
+          const t = this.toasts.find(t => t.id === id);
+          if (t) t.visible = false;
+          setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 300);
+        },
+      };
+    }
+
+    /* Alpine component: mini cart drawer */
+    function cartDrawerComp() {
+      return {
+        open: false,
+        loading: false,
+        total: '0',
+        items: [],
+
+        async openDrawer() {
+          this.open = true;
+          this.loading = true;
+          try {
+            const r = await fetch('/cart/data/');
+            const d = await r.json();
+            this.items = d.items;
+            this.total = d.total;
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async removeItem(id) {
+          await fetch('/cart/remove/' + id + '/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          this.items = this.items.filter(i => i.id !== id);
+          this.total = this.items.reduce((s, i) => s + parseFloat(i.subtotal), 0).toFixed(0);
+          window.dispatchEvent(new CustomEvent('cart-count-updated', { detail: { count: this.items.length } }));
+        },
+
+        async updateQty(id, qty) {
+          if (qty < 0) return;
+          const r = await fetch('/cart/update/' + id + '/', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': getCsrf(),
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'quantity=' + qty,
+          });
+          const d = await r.json();
+          if (qty <= 0) {
+            this.items = this.items.filter(i => i.id !== id);
+          } else {
+            const item = this.items.find(i => i.id === id);
+            if (item) { item.quantity = qty; item.subtotal = d.item_subtotal; }
+          }
+          this.total = d.cart_total;
+          window.dispatchEvent(new CustomEvent('cart-count-updated', { detail: { count: this.items.length } }));
+        },
+      };
+    }
+
+    /* Alpine component: full cart page */
+    function cartPage() {
+      const raw = JSON.parse(document.getElementById('cart-json').textContent);
+      return {
+        items: raw.items.map(i => Object.assign({}, i)),
+        get total() {
+          return this.items.reduce((s, i) => s + Math.round(parseFloat(i.subtotal)), 0);
+        },
+
+        async updateQty(id, qty) {
+          if (qty < 0) return;
+          const r = await fetch('/cart/update/' + id + '/', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': getCsrf(),
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'quantity=' + qty,
+          });
+          const d = await r.json();
+          if (qty <= 0) {
+            this.items = this.items.filter(i => i.id !== id);
+          } else {
+            const item = this.items.find(i => i.id === id);
+            if (item) { item.quantity = qty; item.subtotal = d.item_subtotal; }
+          }
+          window.dispatchEvent(new CustomEvent('cart-count-updated', { detail: { count: this.items.length } }));
+        },
+
+        async removeItem(id) {
+          await fetch('/cart/remove/' + id + '/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          this.items = this.items.filter(i => i.id !== id);
+          window.dispatchEvent(new CustomEvent('cart-count-updated', { detail: { count: this.items.length } }));
+        },
+      };
+    }
+  </script>
 </head>
 <body>
 
 <!-- Top brand bar -->
 <div class="navbar-top-bar"></div>
 
-<!-- Navbar -->
-<header class="navbar-wrap" x-data="{ mobileOpen: false }">
+<!-- Navbar — cartCount is reactive via cart-count-updated events -->
+<header class="navbar-wrap"
+        x-data="{ mobileOpen: false, cartCount: {{ cart_count }} }"
+        @cart-count-updated.window="cartCount = $event.detail.count">
   <div class="navbar-inner">
     <a href="/" class="navbar-logo">🐇 兔窩</a>
 
@@ -267,19 +472,19 @@
 
     <div class="navbar-actions">
       {% if user.is_authenticated %}
-        <a href="/cart/" class="cart-icon-btn">
+        <!-- Cart button opens the drawer instead of navigating -->
+        <button @click="$dispatch('open-cart')" class="cart-icon-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
             <path d="M16 10a4 4 0 01-8 0"/>
           </svg>
           購物車
-          {% if cart_count > 0 %}<span class="cart-badge">{{ cart_count }}</span>{% endif %}
-        </a>
+          <span class="cart-badge" x-show="cartCount > 0" x-text="cartCount" x-cloak></span>
+        </button>
 
         <div x-data="{ open: false }" class="relative hidden md:block">
           <button @click="open = !open"
-                  class="flex items-center gap-2 text-sm text-gray-600 hover:text-brand px-3 py-1.5 rounded transition"
-                  style="--tw-text-opacity:1">
+                  class="flex items-center gap-2 text-sm text-gray-600 hover:text-brand px-3 py-1.5 rounded transition">
             {% if user.avatar %}
               <img src="{{ user.avatar }}" class="w-7 h-7 rounded-full object-cover">
             {% else %}
@@ -328,9 +533,11 @@
         <a href="/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">首頁</a>
         <a href="/products/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">所有商品</a>
         {% if user.is_authenticated %}
-          <a href="/cart/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">
-            購物車{% if cart_count > 0 %} ({{ cart_count }}){% endif %}
-          </a>
+          <button @click="mobileOpen = false; $dispatch('open-cart')"
+                  style="display:block;width:100%;text-align:left;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;background:none;border-left:none;border-right:none;border-top:none;cursor:pointer;font-family:inherit;">
+            購物車
+            <span x-show="cartCount > 0" x-text="'(' + cartCount + ')'" style="color:#8f9b34;font-weight:600;margin-left:4px;"></span>
+          </button>
           <a href="/orders/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">我的訂單</a>
           <a href="/profile/" style="display:block;padding:12px 20px;color:#333;font-size:15px;border-bottom:1px solid #f0f0f0;text-decoration:none;">個人資料</a>
           {% if user.is_staff %}
@@ -395,6 +602,151 @@
     </div>
   </div>
 </footer>
+
+<!-- =========================================================
+     Toast notification stack (fixed top-right)
+     ========================================================= -->
+<div x-data="toastSystem()"
+     @show-toast.window="show($event.detail.msg, $event.detail.type)"
+     style="position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:300px;width:calc(100vw - 40px);">
+  <template x-for="t in toasts" :key="t.id">
+    <div x-show="t.visible"
+         x-transition:enter="transition ease-out duration-250"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         :class="t.type === 'error' ? 'toast-error' : 'toast-success'"
+         style="pointer-events:auto;display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.22);font-size:13.5px;font-weight:500;cursor:pointer;line-height:1.5;"
+         @click="dismiss(t.id)">
+      <span :x-text="t.type === 'error' ? '✕' : '✓'"
+            style="flex-shrink:0;font-weight:700;">
+        <template x-if="t.type === 'error'">✕</template>
+        <template x-if="t.type !== 'error'">✓</template>
+      </span>
+      <span x-text="t.msg"></span>
+    </div>
+  </template>
+</div>
+
+<!-- =========================================================
+     Mini Cart Drawer
+     ========================================================= -->
+<div x-data="cartDrawerComp()" @open-cart.window="openDrawer()" x-cloak>
+  <!-- Backdrop -->
+  <div x-show="open" x-cloak
+       @click="open = false"
+       style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;"></div>
+
+  <!-- Panel -->
+  <div x-show="open" x-cloak
+       style="position:fixed;right:0;top:0;bottom:0;width:380px;max-width:100vw;background:#fff;z-index:501;display:flex;flex-direction:column;box-shadow:-4px 0 32px rgba(0,0,0,.18);">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e0e0e0;flex-shrink:0;">
+      <span style="font-size:16px;font-weight:700;color:#333;">
+        購物車
+        <span x-show="items.length > 0"
+              x-text="'(' + items.length + ' 件)'"
+              style="font-size:13px;font-weight:400;color:#999;margin-left:4px;"></span>
+      </span>
+      <button @click="open = false"
+              style="background:none;border:none;cursor:pointer;color:#aaa;font-size:26px;line-height:1;padding:2px 6px;border-radius:4px;transition:color .15s;"
+              onmouseover="this.style.color='#333'" onmouseout="this.style.color='#aaa'">×</button>
+    </div>
+
+    <!-- Items -->
+    <div style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <template x-if="loading">
+        <div style="display:flex;align-items:center;justify-content:center;height:100px;color:#bbb;font-size:14px;gap:8px;">
+          <span>載入中...</span>
+        </div>
+      </template>
+
+      <template x-if="!loading && items.length === 0">
+        <div style="text-align:center;padding:48px 0;">
+          <div style="font-size:52px;margin-bottom:14px;">🛒</div>
+          <p style="font-size:14px;color:#999;margin:0 0 18px;">購物車是空的</p>
+          <button @click="open = false"
+                  onclick="setTimeout(() => window.location='/products/', 50)"
+                  style="background:none;border:none;cursor:pointer;color:#8f9b34;font-size:14px;font-weight:600;font-family:inherit;">
+            去逛逛 →
+          </button>
+        </div>
+      </template>
+
+      <template x-if="!loading && items.length > 0">
+        <div>
+          <template x-for="item in items" :key="item.id">
+            <div style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #f0f0f0;">
+              <!-- Thumbnail -->
+              <a :href="'/products/' + item.product_slug + '/'"
+                 style="flex-shrink:0;width:72px;height:72px;border:1px solid #eee;border-radius:4px;overflow:hidden;background:#f5f5f5;display:block;">
+                <template x-if="item.product_image">
+                  <img :src="item.product_image" :alt="item.product_name"
+                       style="width:100%;height:100%;object-fit:cover;">
+                </template>
+                <template x-if="!item.product_image">
+                  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;color:#ccc;">🐇</div>
+                </template>
+              </a>
+              <!-- Info -->
+              <div style="flex:1;min-width:0;">
+                <a :href="'/products/' + item.product_slug + '/'"
+                   style="font-size:13px;font-weight:600;color:#333;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                   x-text="item.product_name"></a>
+                <p x-show="item.variant_name"
+                   style="font-size:11px;color:#999;margin:2px 0 0;"
+                   x-text="'規格：' + item.variant_name"></p>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                  <!-- Qty stepper -->
+                  <div style="display:inline-flex;border:1.5px solid #ddd;border-radius:4px;overflow:hidden;">
+                    <button @click="updateQty(item.id, item.quantity - 1)"
+                            style="width:28px;height:28px;background:#f8f8f8;border:none;cursor:pointer;font-size:15px;color:#555;transition:background .1s;"
+                            onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#f8f8f8'">−</button>
+                    <span x-text="item.quantity"
+                          style="width:34px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;border-left:1.5px solid #ddd;border-right:1.5px solid #ddd;"></span>
+                    <button @click="updateQty(item.id, item.quantity + 1)"
+                            style="width:28px;height:28px;background:#f8f8f8;border:none;cursor:pointer;font-size:15px;color:#555;transition:background .1s;"
+                            onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#f8f8f8'">+</button>
+                  </div>
+                  <!-- Subtotal + remove -->
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span x-text="'$' + item.subtotal"
+                          style="font-size:14px;font-weight:700;color:#8f9b34;"></span>
+                    <button @click="removeItem(item.id)"
+                            style="background:none;border:none;cursor:pointer;color:#ccc;font-size:12px;padding:0;transition:color .15s;"
+                            onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#ccc'">✕</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- Footer (only when there are items) -->
+    <div x-show="!loading && items.length > 0"
+         style="padding:16px 20px;border-top:1px solid #e0e0e0;flex-shrink:0;background:#fafafa;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="font-size:14px;color:#555;font-weight:600;">合計</span>
+        <span x-text="'$' + total"
+              style="font-size:20px;font-weight:700;color:#8f9b34;"></span>
+      </div>
+      <a href="/checkout/" class="btn-brand"
+         style="display:block;width:100%;text-align:center;padding:13px;font-size:15px;font-weight:700;border-radius:6px;margin-bottom:10px;">
+        前往結帳
+      </a>
+      <a href="/cart/"
+         style="display:block;width:100%;text-align:center;padding:8px;font-size:13px;color:#888;text-decoration:none;transition:color .15s;"
+         onmouseover="this.style.color='#8f9b34'" onmouseout="this.style.color='#888'">
+        查看完整購物車
+      </a>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

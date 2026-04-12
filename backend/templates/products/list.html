@@ -88,12 +88,21 @@
       {% if page.object_list %}
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:16px;">
           {% for product in page %}
+            <!-- Wrapper keeps quick-add button in same stacking context as card -->
             <a href="/products/{{ product.slug }}/" class="product-card">
               <div class="product-img-wrap">
                 {% if product.first_image %}
                   <img src="{{ product.first_image }}" alt="{{ product.name_zh|default:product.name }}" class="product-img">
                 {% else %}
                   <div class="product-img-placeholder">🐇</div>
+                {% endif %}
+
+                <!-- Quick-add slides up from bottom of image on hover -->
+                {% if user.is_authenticated and product.is_available %}
+                  <button class="quick-add-btn"
+                          onclick="event.stopPropagation(); event.preventDefault(); addToCart({{ product.id }}, {{ product.has_variants|lower }}, '/products/{{ product.slug }}/')">
+                    {% if product.has_variants %}選擇規格{% else %}+ 加入購物車{% endif %}
+                  </button>
                 {% endif %}
               </div>
               <div class="product-info">

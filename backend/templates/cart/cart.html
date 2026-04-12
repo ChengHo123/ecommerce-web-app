@@ -2,6 +2,23 @@
 {% block title %}購物車 — 兔窩{% endblock %}
 
 {% block content %}
+<!-- Seed reactive data from Django into a JSON script tag -->
+<script id="cart-json" type="application/json">
+{
+  "total": "{{ cart.total }}",
+  "items": [{% for item in items %}{
+    "id": {{ item.id }},
+    "product_name": "{{ item.product.name_zh|default:item.product.name|escapejs }}",
+    "product_slug": "{{ item.product.slug|escapejs }}",
+    "product_image": "{{ item.product.first_image|default:''|escapejs }}",
+    "variant_name": "{% if item.variant %}{{ item.variant.name_zh|default:item.variant.name|escapejs }}{% endif %}",
+    "quantity": {{ item.quantity }},
+    "unit_price": "{{ item.unit_price }}",
+    "subtotal": "{{ item.subtotal }}"
+  }{% if not forloop.last %},{% endif %}{% endfor %}]
+}
+</script>
+
 <div style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;padding:12px 0;">
   <div class="page-container breadcrumb">
     <a href="/">首頁</a><span>/</span>
@@ -9,19 +26,24 @@
   </div>
 </div>
 
-<div class="page-container" style="padding-top:28px;padding-bottom:56px;">
+<div class="page-container" style="padding-top:28px;padding-bottom:56px;"
+     x-data="cartPage()">
+
   <h1 style="font-size:22px;font-weight:700;color:#333;margin:0 0 24px;">
     購物車
-    {% if items %}<span style="font-size:15px;font-weight:400;color:#999;margin-left:8px;">({{ items|length }} 件商品)</span>{% endif %}
+    <span x-show="items.length > 0"
+          x-text="'(' + items.length + ' 件商品)'"
+          style="font-size:15px;font-weight:400;color:#999;margin-left:8px;"></span>
   </h1>
 
-  {% if items %}
+  <!-- Has items -->
+  <template x-if="items.length > 0">
     <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;" class="cart-layout">
 
       <!-- Cart Items -->
       <div>
         <!-- Header row (desktop) -->
-        <div style="display:grid;grid-template-columns:1fr 120px 100px 80px;gap:12px;
+        <div style="display:grid;grid-template-columns:1fr 120px 100px 60px;gap:12px;
                     padding:10px 16px;background:#f8f8f8;border:1px solid #e0e0e0;
                     border-radius:4px 4px 0 0;font-size:12px;font-weight:700;color:#999;
                     text-transform:uppercase;letter-spacing:.5px;"
@@ -32,75 +54,72 @@
           <div></div>
         </div>
 
-        <!-- Items -->
-        {% for item in items %}
+        <template x-for="(item, idx) in items" :key="item.id">
           <div style="display:grid;grid-template-columns:80px 1fr;gap:14px;
                       padding:16px;background:#fff;
-                      border:1px solid #e0e0e0;border-top:none;
-                      {% if forloop.last %}border-radius:0 0 4px 4px;{% endif %}">
+                      border:1px solid #e0e0e0;border-top:none;"
+               :style="idx === items.length - 1 ? 'border-radius:0 0 4px 4px' : ''">
 
             <!-- Thumbnail -->
-            <a href="/products/{{ item.product.slug }}/"
+            <a :href="'/products/' + item.product_slug + '/'"
                style="display:block;width:80px;height:80px;border:1px solid #eee;border-radius:4px;overflow:hidden;background:#f5f5f5;flex-shrink:0;">
-              {% if item.product.first_image %}
-                <img src="{{ item.product.first_image }}" alt="" style="width:100%;height:100%;object-fit:cover;">
-              {% else %}
+              <template x-if="item.product_image">
+                <img :src="item.product_image" :alt="item.product_name"
+                     style="width:100%;height:100%;object-fit:cover;">
+              </template>
+              <template x-if="!item.product_image">
                 <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#ccc;">🐇</div>
-              {% endif %}
+              </template>
             </a>
 
             <!-- Detail -->
             <div style="display:flex;flex-direction:column;justify-content:space-between;min-width:0;">
               <div>
-                <a href="/products/{{ item.product.slug }}/"
-                   style="font-size:14px;font-weight:600;color:#333;text-decoration:none;line-height:1.4;display:block;"
-                   onmouseover="this.style.color='#8f9b34'" onmouseout="this.style.color='#333'">
-                  {{ item.product.name_zh|default:item.product.name }}
-                </a>
-                {% if item.variant %}
-                  <p style="font-size:12px;color:#999;margin:3px 0 0;">規格：{{ item.variant.name_zh|default:item.variant.name }}</p>
-                {% endif %}
+                <a :href="'/products/' + item.product_slug + '/'"
+                   style="font-size:14px;font-weight:600;color:#333;text-decoration:none;line-height:1.4;display:block;transition:color .15s;"
+                   x-text="item.product_name"
+                   onmouseover="this.style.color='#8f9b34'" onmouseout="this.style.color='#333'"></a>
+                <p x-show="item.variant_name"
+                   style="font-size:12px;color:#999;margin:3px 0 0;"
+                   x-text="'規格：' + item.variant_name"></p>
               </div>
 
               <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px;">
                 <!-- Qty controls -->
-                <form method="post" action="/cart/update/{{ item.id }}/"
-                      style="display:inline-flex;border:1.5px solid #ddd;border-radius:4px;overflow:hidden;">
-                  {% csrf_token %}
-                  <button type="submit" name="quantity" value="{{ item.quantity|add:-1 }}"
+                <div style="display:inline-flex;border:1.5px solid #ddd;border-radius:4px;overflow:hidden;">
+                  <button @click="updateQty(item.id, item.quantity - 1)"
                           style="width:32px;height:32px;background:#f8f8f8;border:none;cursor:pointer;font-size:16px;color:#555;transition:background .1s;"
                           onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#f8f8f8'">−</button>
-                  <span style="width:40px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;border-left:1.5px solid #ddd;border-right:1.5px solid #ddd;">{{ item.quantity }}</span>
-                  <button type="submit" name="quantity" value="{{ item.quantity|add:1 }}"
+                  <span x-text="item.quantity"
+                        style="width:40px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;border-left:1.5px solid #ddd;border-right:1.5px solid #ddd;"></span>
+                  <button @click="updateQty(item.id, item.quantity + 1)"
                           style="width:32px;height:32px;background:#f8f8f8;border:none;cursor:pointer;font-size:16px;color:#555;transition:background .1s;"
                           onmouseover="this.style.background='#eee'" onmouseout="this.style.background='#f8f8f8'">+</button>
-                </form>
+                </div>
 
-                <span style="font-size:15px;font-weight:700;color:#8f9b34;">${{ item.subtotal }}</span>
+                <span x-text="'$' + item.subtotal"
+                      style="font-size:15px;font-weight:700;color:#8f9b34;"></span>
 
-                <form method="post" action="/cart/remove/{{ item.id }}/">
-                  {% csrf_token %}
-                  <button type="submit"
-                          style="background:none;border:none;cursor:pointer;font-size:12px;color:#bbb;padding:0;transition:color .15s;"
-                          onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#bbb'">
-                    ✕ 刪除
-                  </button>
-                </form>
+                <button @click="removeItem(item.id)"
+                        style="background:none;border:none;cursor:pointer;font-size:12px;color:#bbb;padding:0;transition:color .15s;"
+                        onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#bbb'">
+                  ✕ 刪除
+                </button>
               </div>
             </div>
           </div>
-        {% endfor %}
+        </template>
       </div>
 
-      <!-- Summary -->
+      <!-- Order Summary (sticky) -->
       <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden;position:sticky;top:80px;">
         <div style="background:#f8f8f8;padding:14px 18px;border-bottom:1px solid #e0e0e0;">
           <span style="font-size:15px;font-weight:700;color:#333;">訂單摘要</span>
         </div>
         <div style="padding:18px;">
           <div style="display:flex;justify-content:space-between;font-size:14px;color:#555;margin-bottom:10px;">
-            <span>小計 ({{ items|length }} 件)</span>
-            <span>${{ cart.total }}</span>
+            <span x-text="'小計 (' + items.length + ' 件)'"></span>
+            <span x-text="'$' + total"></span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:14px;color:#555;margin-bottom:16px;">
             <span>運費</span>
@@ -108,7 +127,8 @@
           </div>
           <div style="border-top:1px solid #e0e0e0;padding-top:14px;display:flex;justify-content:space-between;margin-bottom:18px;">
             <span style="font-size:16px;font-weight:700;color:#333;">合計</span>
-            <span style="font-size:18px;font-weight:700;color:#8f9b34;">${{ cart.total }}</span>
+            <span x-text="'$' + total"
+                  style="font-size:18px;font-weight:700;color:#8f9b34;"></span>
           </div>
           <a href="/checkout/" class="btn-brand"
              style="display:block;width:100%;text-align:center;padding:13px;font-size:15px;font-weight:700;border-radius:4px;">
@@ -123,8 +143,10 @@
       </div>
 
     </div>
+  </template>
 
-  {% else %}
+  <!-- Empty cart -->
+  <template x-if="items.length === 0">
     <div style="text-align:center;padding:80px 20px;background:#fff;border:1px solid #e0e0e0;border-radius:4px;">
       <div style="font-size:60px;margin-bottom:16px;">🛒</div>
       <h2 style="font-size:20px;font-weight:700;color:#333;margin:0 0 8px;">購物車是空的</h2>
@@ -134,7 +156,8 @@
         去逛逛
       </a>
     </div>
-  {% endif %}
+  </template>
+
 </div>
 
 <style>
