@@ -33,6 +33,10 @@ def line_pay_confirm(request):
                 "status": Payment.Status.COMPLETED,
             },
         )
+        # Send confirmation email
+        from services.email_notify import send_order_confirmed
+        send_order_confirmed(order)
+
         request.session["last_order_id"] = order.id
         return redirect("/orders/confirm/")
 
@@ -67,6 +71,10 @@ def stripe_success(request):
                 "status": Payment.Status.COMPLETED,
             },
         )
+        # Send confirmation email
+        from services.email_notify import send_order_confirmed
+        send_order_confirmed(order)
+
         request.session["last_order_id"] = order.id
     return redirect("/orders/confirm/")
 

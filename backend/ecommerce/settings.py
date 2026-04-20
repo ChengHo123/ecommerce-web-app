@@ -206,14 +206,33 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 #           "default_acl":        None,
 #       }
 #   }
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
+if os.environ.get("S3_BUCKET_NAME"):
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "bucket_name": os.environ["S3_BUCKET_NAME"],
+                "access_key": os.environ.get("S3_ACCESS_KEY", ""),
+                "secret_key": os.environ.get("S3_SECRET_KEY", ""),
+                "endpoint_url": os.environ.get("S3_ENDPOINT_URL"),
+                "custom_domain": os.environ.get("S3_CUSTOM_DOMAIN"),
+                "file_overwrite": False,
+                "default_acl": None,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -318,6 +337,19 @@ LOGGING = {
         "level": "WARNING",
     },
 }
+
+# ── Email ─────────────────────────────────────────────────────────────────
+# Development: emails printed to console
+# Production: switch to SMTP or a service like SES / SendGrid
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "兔窩 TwoRabbits <noreply@tworabbits.com>")
 
 LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/"

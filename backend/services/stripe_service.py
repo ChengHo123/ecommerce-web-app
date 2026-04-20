@@ -3,6 +3,34 @@ from django.conf import settings
 from django.urls import reverse
 
 
+def refund_stripe_payment(order) -> bool:
+    """Refund a Stripe payment. Looks up Payment record for session/transaction ID."""
+    from apps.payments.models import Payment
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        payment = Payment.objects.get(order=order, provider=Payment.Provider.STRIPE)
+    except Payment.DoesNotExist:
+        return False
+
+    if not payment.transaction_id:
+        return False
+
+    try:
+        # Retrieve the checkout session to get the payment intent
+        session = stripe.checkout.Session.retrieve(payment.transaction_id)
+        payment_intent_id = session.get("payment_intent")
+        if not payment_intent_id:
+            return False
+
+        stripe.Refund.create(payment_intent=payment_intent_id)
+        payment.status = Payment.Status.REFUNDED
+        payment.save(update_fields=["status"])
+        return True
+    except Exception:
+        return False
+
+
 def create_stripe_session(order, request) -> str | None:
     stripe.api_key = settings.STRIPE_SECRET_KEY
     try:

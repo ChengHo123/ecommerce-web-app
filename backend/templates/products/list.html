@@ -41,6 +41,17 @@
                onmouseout="this.style.background='';this.style.color='#555';"{% endif %}>
               {{ cat.name }}
             </a>
+            {% for child in cat.children.all %}
+              <a href="/products/?category={{ child.slug }}"
+                 style="display:block;padding:7px 16px 7px 30px;font-size:13px;text-decoration:none;
+                        {% if selected_category.slug == child.slug %}background:#f5f7e8;color:#8f9b34;font-weight:600;border-left:3px solid #8f9b34;{% else %}color:#888;border-left:3px solid transparent;{% endif %}
+                        transition:all .15s;"
+                 {% if selected_category.slug != child.slug %}
+                 onmouseover="this.style.background='#fafafa';this.style.color='#8f9b34';"
+                 onmouseout="this.style.background='';this.style.color='#888';"{% endif %}>
+                {{ child.name }}
+              </a>
+            {% endfor %}
           {% endfor %}
         </nav>
       </div>

@@ -73,6 +73,45 @@ def create_line_pay_payment(order, request) -> str | None:
     return None
 
 
+def refund_line_pay_payment(order) -> bool:
+    """Refund a LINE Pay payment. Requires the Payment record with transaction_id."""
+    from apps.payments.models import Payment
+    try:
+        payment = Payment.objects.get(order=order, provider=Payment.Provider.LINEPAY)
+    except Payment.DoesNotExist:
+        return False
+
+    if not payment.transaction_id:
+        return False
+
+    uri = f"/v3/payments/{payment.transaction_id}/refund"
+    nonce = uuid.uuid4().hex
+    body_data = {}
+    body_str = json.dumps(body_data)
+    signature = _sign(settings.LINE_PAY_CHANNEL_SECRET, uri, body_str, nonce)
+
+    try:
+        resp = httpx.post(
+            _base_url() + uri,
+            content=body_str,
+            headers={
+                "Content-Type": "application/json",
+                "X-LINE-ChannelId": settings.LINE_PAY_CHANNEL_ID,
+                "X-LINE-Authorization-Nonce": nonce,
+                "X-LINE-Authorization": signature,
+            },
+            timeout=15,
+        )
+        data = resp.json()
+        if data.get("returnCode") == "0000":
+            payment.status = Payment.Status.REFUNDED
+            payment.save(update_fields=["status"])
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def confirm_line_pay_payment(order, transaction_id: str) -> bool:
     uri = f"/v3/payments/{transaction_id}/confirm"
     nonce = uuid.uuid4().hex

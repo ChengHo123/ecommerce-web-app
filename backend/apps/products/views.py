@@ -34,18 +34,26 @@ def product_list(request):
     if category_slug:
         selected_category = Category.objects.filter(slug=category_slug).first()
         if selected_category:
-            qs = qs.filter(category=selected_category)
+            # Include products in this category AND its child categories
+            child_ids = list(
+                Category.objects.filter(parent=selected_category).values_list("pk", flat=True)
+            )
+            category_ids = [selected_category.pk] + child_ids
+            qs = qs.filter(category_id__in=category_ids)
 
     if search:
-        qs = qs.filter(name__icontains=search) | Product.objects.filter(
-            name_zh__icontains=search, status=Product.Status.ACTIVE
-        )
-        qs = qs.distinct()
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(name__icontains=search)
+            | Q(name_zh__icontains=search)
+            | Q(tags__icontains=search)
+            | Q(category__name__icontains=search)
+        ).distinct()
 
     paginator = Paginator(qs, 20)
     page = paginator.get_page(request.GET.get("page", 1))
 
-    categories = Category.objects.filter(parent=None)
+    categories = Category.objects.filter(parent=None).prefetch_related("children")
     return render(request, "products/list.html", {
         "page": page,
         "categories": categories,
@@ -61,10 +69,77 @@ def product_detail(request, slug):
         status=Product.Status.ACTIVE,
     )
     reviews = product.reviews.select_related("user").order_by("-created_at")[:10]
+
+    from django.db.models import Avg
+    avg_rating = product.reviews.aggregate(avg=Avg("rating"))["avg"]
+
+    # Determine if user can leave a review (must have purchased and not already reviewed)
+    can_review = False
+    has_reviewed = False
+    if request.user.is_authenticated:
+        has_reviewed = product.reviews.filter(user=request.user).exists()
+        if not has_reviewed:
+            from apps.orders.models import Order
+            can_review = Order.objects.filter(
+                user=request.user,
+                items__product=product,
+                payment_status=Order.PaymentStatus.PAID,
+            ).exists()
+
     return render(request, "products/detail.html", {
         "product": product,
         "reviews": reviews,
+        "avg_rating": round(avg_rating, 1) if avg_rating else None,
+        "review_count": product.reviews.count(),
+        "can_review": can_review,
+        "has_reviewed": has_reviewed,
     })
+
+
+@require_POST
+def submit_review(request, slug):
+    from django.contrib.auth.decorators import login_required as _lr
+    if not request.user.is_authenticated:
+        return redirect("/auth/login/")
+
+    product = get_object_or_404(Product, slug=slug, status=Product.Status.ACTIVE)
+
+    from apps.payments.models import Review
+    from apps.orders.models import Order
+
+    # Check user has purchased this product
+    has_purchased = Order.objects.filter(
+        user=request.user,
+        items__product=product,
+        payment_status=Order.PaymentStatus.PAID,
+    ).exists()
+    if not has_purchased:
+        from django.contrib import messages as msgs
+        msgs.error(request, "需購買此商品後才能留下評論。")
+        return redirect(f"/products/{slug}/")
+
+    # Check not already reviewed
+    if Review.objects.filter(user=request.user, product=product).exists():
+        return redirect(f"/products/{slug}/")
+
+    try:
+        rating = int(request.POST.get("rating", 5))
+        rating = max(1, min(5, rating))
+    except (ValueError, TypeError):
+        rating = 5
+
+    comment = request.POST.get("comment", "").strip()
+
+    Review.objects.create(
+        user=request.user,
+        product=product,
+        rating=rating,
+        comment=comment or None,
+    )
+
+    from django.contrib import messages as msgs
+    msgs.success(request, "評論已送出，感謝您的回饋！")
+    return redirect(f"/products/{slug}/")
 
 
 # ── Admin bulk import ────────────────────────────────────────────────────────

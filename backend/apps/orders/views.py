@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime
+from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -75,63 +76,124 @@ def place_order(request):
         cvs_store_name = request.POST.get("cvs_store_name", "")
         cvs_type = request.POST.get("cvs_type", "")
 
-    # Calculate total
-    total = 0.0
-    order_items_data = []
-    for item in cart_items:
-        price = float(item.unit_price)
-        total += price * item.quantity
-        order_items_data.append({
-            "product": item.product,
-            "variant": item.variant,
-            "quantity": item.quantity,
-            "unit_price": price,
-            "product_name": item.product.name_zh or item.product.name,
-            "variant_name": item.variant.name_zh or item.variant.name if item.variant else None,
-        })
+    try:
+        with transaction.atomic():
+            # Lock products and variants to prevent overselling
+            product_ids = [item.product_id for item in cart_items]
+            variant_ids = [item.variant_id for item in cart_items if item.variant_id]
 
-    # Apply coupon
-    discount_amount = 0.0
-    coupon = None
-    if coupon_code:
-        from django.utils import timezone
-        try:
-            coupon = Coupon.objects.get(code=coupon_code, is_active=True)
-            if (not coupon.expires_at or coupon.expires_at >= timezone.now()) and \
-               (not coupon.usage_limit or coupon.used_count < coupon.usage_limit) and \
-               total >= float(coupon.min_amount):
-                discount_amount = coupon.calculate_discount(total)
-        except Coupon.DoesNotExist:
-            pass
+            locked_products = {
+                p.pk: p for p in
+                Product.objects.select_for_update().filter(pk__in=product_ids)
+            }
+            locked_variants = {}
+            if variant_ids:
+                locked_variants = {
+                    v.pk: v for v in
+                    ProductVariant.objects.select_for_update().filter(pk__in=variant_ids)
+                }
 
-    final_total = total - discount_amount
+            # Validate stock and calculate total
+            total = 0.0
+            order_items_data = []
+            for item in cart_items:
+                product = locked_products[item.product_id]
+                variant = locked_variants.get(item.variant_id) if item.variant_id else None
 
-    # Create order
-    order = Order.objects.create(
-        order_no=_generate_order_no(),
-        user=request.user,
-        total=final_total,
-        discount_amount=discount_amount,
-        payment_method=payment_method,
-        logistics_type=logistics_type,
-        shipping_address=shipping_address,
-        cvs_store_id=cvs_store_id,
-        cvs_store_name=cvs_store_name,
-        cvs_type=cvs_type,
-        buyer_note=buyer_note,
-        coupon=coupon,
-    )
+                # Check stock availability
+                if variant:
+                    if variant.stock < item.quantity:
+                        messages.error(
+                            request,
+                            f"「{product.name_zh or product.name} - {variant.name_zh or variant.name}」庫存不足"
+                            f"（剩餘 {variant.stock} 件）。"
+                        )
+                        return redirect("/cart/")
+                elif not product.unlimited_stock:
+                    if product.stock < item.quantity:
+                        messages.error(
+                            request,
+                            f"「{product.name_zh or product.name}」庫存不足"
+                            f"（剩餘 {product.stock} 件）。"
+                        )
+                        return redirect("/cart/")
 
-    for item_data in order_items_data:
-        OrderItem.objects.create(order=order, **item_data)
+                price = float(variant.display_price if variant else product.display_price)
+                total += price * item.quantity
+                order_items_data.append({
+                    "product": product,
+                    "variant": variant,
+                    "quantity": item.quantity,
+                    "unit_price": price,
+                    "product_name": product.name_zh or product.name,
+                    "variant_name": (variant.name_zh or variant.name) if variant else None,
+                })
 
-    if coupon:
-        coupon.used_count += 1
-        coupon.save(update_fields=["used_count"])
-        CouponUsage.objects.create(coupon=coupon, user=request.user, order=order)
+            # Apply coupon
+            discount_amount = 0.0
+            coupon = None
+            if coupon_code:
+                from django.utils import timezone
+                try:
+                    coupon = Coupon.objects.select_for_update().get(
+                        code=coupon_code, is_active=True,
+                    )
+                    if (not coupon.expires_at or coupon.expires_at >= timezone.now()) and \
+                       (not coupon.usage_limit or coupon.used_count < coupon.usage_limit) and \
+                       total >= float(coupon.min_amount):
+                        discount_amount = coupon.calculate_discount(total)
+                    else:
+                        coupon = None
+                except Coupon.DoesNotExist:
+                    pass
 
-    # Clear cart
-    cart.items.all().delete()
+            final_total = total - discount_amount
+
+            # Create order
+            order = Order.objects.create(
+                order_no=_generate_order_no(),
+                user=request.user,
+                total=final_total,
+                discount_amount=discount_amount,
+                payment_method=payment_method,
+                logistics_type=logistics_type,
+                shipping_address=shipping_address,
+                cvs_store_id=cvs_store_id,
+                cvs_store_name=cvs_store_name,
+                cvs_type=cvs_type,
+                buyer_note=buyer_note,
+                coupon=coupon,
+            )
+
+            for item_data in order_items_data:
+                OrderItem.objects.create(order=order, **item_data)
+
+            # Deduct stock
+            for item_data in order_items_data:
+                qty = item_data["quantity"]
+                variant = item_data["variant"]
+                product = item_data["product"]
+
+                if variant:
+                    variant.stock = max(0, variant.stock - qty)
+                    variant.save(update_fields=["stock"])
+                elif not product.unlimited_stock:
+                    product.stock = max(0, product.stock - qty)
+                    product.save(update_fields=["stock"])
+
+            # Update coupon usage
+            if coupon:
+                coupon.used_count += 1
+                coupon.save(update_fields=["used_count"])
+                CouponUsage.objects.create(coupon=coupon, user=request.user, order=order)
+
+            # Clear cart
+            cart.items.all().delete()
+
+    except Exception:
+        logger.exception("place_order failed for user=%s", request.user)
+        messages.error(request, "下單失敗，請稍後再試。")
+        return redirect("/cart/")
 
     logger.info("order created: %s user=%s total=%s method=%s logistics=%s",
                 order.order_no, request.user, final_total, payment_method, logistics_type)
