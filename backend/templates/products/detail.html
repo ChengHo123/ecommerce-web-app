@@ -1,37 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ product.name_zh|default:product.name }} — 兔窩{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox@3/dist/css/glightbox.min.css">
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/glightbox@3/dist/js/glightbox.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <!-- Entire page in one Alpine scope for sticky CTA ↔ form communication -->
-<div x-data="{
-  images: [{% with imgs=product.all_images %}{% for img in imgs %}'{{ img|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}{% endwith %}],
-  current: 0,
-  fading: false,
-  lightbox: false,
-  touchStartX: 0,
-  quantity: 1,
-
-  get activeImg() { return this.images[this.current] || ''; },
-
-  prev() {
-    if (this.images.length <= 1) return;
-    this.goto((this.current - 1 + this.images.length) % this.images.length);
-  },
-  next() {
-    if (this.images.length <= 1) return;
-    this.goto((this.current + 1) % this.images.length);
-  },
-  goto(i) {
-    if (i === this.current) return;
-    this.fading = true;
-    setTimeout(() => { this.current = i; this.fading = false; }, 160);
-  },
-  touchStart(e) { this.touchStartX = e.changedTouches[0].clientX; },
-  touchEnd(e) {
-    const dx = e.changedTouches[0].clientX - this.touchStartX;
-    if (Math.abs(dx) > 40) { dx < 0 ? this.next() : this.prev(); }
-  },
-}">
+<div x-data="{ quantity: 1 }">
 
 <!-- Breadcrumb -->
 <div style="background:#f8f8f8;border-bottom:1px solid #e0e0e0;padding:12px 0;">
@@ -50,79 +29,46 @@
   <!-- Product Main -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;" class="md-product-grid">
 
-    <!-- ── Image Gallery ── -->
+    <!-- ── Image Gallery (Swiper) ── -->
     <div>
-      <!-- Main image -->
-      <div style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f5f5f5;position:relative;cursor:zoom-in;margin-bottom:12px;user-select:none;"
-           @click="if(activeImg) lightbox = true"
-           @touchstart.passive="touchStart($event)"
-           @touchend.passive="touchEnd($event)">
-
-        <template x-if="activeImg">
-          <img :src="activeImg"
-               alt="{{ product.name_zh|default:product.name }}"
-               style="width:100%;height:100%;object-fit:cover;transition:opacity .16s ease;"
-               :style="fading ? 'opacity:0' : 'opacity:1'">
-        </template>
-        <template x-if="!activeImg">
-          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;color:#ccc;">🐇</div>
-        </template>
-
-        <!-- Left arrow -->
-        <button x-show="images.length > 1"
-                @click.stop="prev()"
-                style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.88);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.14);transition:background .15s,box-shadow .15s;z-index:2;"
-                onmouseover="this.style.background='#fff';this.style.boxShadow='0 3px 14px rgba(0,0,0,.2)'"
-                onmouseout="this.style.background='rgba(255,255,255,.88)';this.style.boxShadow='0 2px 10px rgba(0,0,0,.14)'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-
-        <!-- Right arrow -->
-        <button x-show="images.length > 1"
-                @click.stop="next()"
-                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.88);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.14);transition:background .15s,box-shadow .15s;z-index:2;"
-                onmouseover="this.style.background='#fff';this.style.boxShadow='0 3px 14px rgba(0,0,0,.2)'"
-                onmouseout="this.style.background='rgba(255,255,255,.88)';this.style.boxShadow='0 2px 10px rgba(0,0,0,.14)'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-
-        <!-- Mobile-only dot indicators -->
-        <div x-show="images.length > 1"
-             class="md:hidden"
-             style="position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:2;">
-          <template x-for="(img, i) in images" :key="i">
-            <button @click.stop="goto(i)"
-                    style="height:6px;border-radius:3px;border:none;cursor:pointer;padding:0;transition:all .2s ease;"
-                    :style="i === current ? 'width:18px;background:#8f9b34;' : 'width:6px;background:rgba(255,255,255,.65);'">
-            </button>
-          </template>
-        </div>
-
-        <!-- Image counter badge (top-right, player style) -->
-        <div x-show="images.length > 1"
-             x-text="(current + 1) + ' / ' + images.length"
-             style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.4);color:#fff;font-size:11px;font-weight:600;padding:3px 8px;border-radius:12px;pointer-events:none;z-index:2;letter-spacing:.3px;">
-        </div>
-      </div>
-
-      <!-- Thumbnails strip -->
-      <div x-show="images.length > 1" x-cloak
-           style="display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
-        <template x-for="(img, i) in images" :key="i">
-          <div @click="goto(i)"
-               style="flex-shrink:0;width:52px;height:52px;border-radius:4px;overflow:hidden;cursor:pointer;position:relative;transition:opacity .2s;"
-               :style="i === current ? 'opacity:1;' : 'opacity:0.45;'"
-               onmouseover="if(this.getAttribute('data-active') !== 'true') this.style.opacity='0.8'"
-               onmouseout="if(this.getAttribute('data-active') !== 'true') this.style.opacity='0.45'"
-               :data-active="i === current">
-            <img :src="img" alt=""
-                 style="width:100%;height:100%;object-fit:cover;display:block;">
-            <!-- Selected indicator: green bottom bar -->
-            <div x-show="i === current"
-                 style="position:absolute;bottom:0;left:0;right:0;height:3px;background:#8f9b34;"></div>
+      {% with imgs=product.all_images %}
+      {% if imgs %}
+        <!-- Main Swiper -->
+        <div style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f5f5f5;position:relative;margin-bottom:12px;">
+          <div class="swiper product-main-swiper" style="width:100%;height:100%;">
+            <div class="swiper-wrapper">
+              {% for img in imgs %}
+              <div class="swiper-slide" style="cursor:zoom-in;">
+                <img src="{{ img }}" alt="{{ product.name_zh|default:product.name }}"
+                     style="width:100%;height:100%;object-fit:cover;display:block;">
+              </div>
+              {% endfor %}
+            </div>
+            {% if imgs|length > 1 %}
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-button-next"></div>
+            <div class="swiper-pagination"></div>
+            {% endif %}
           </div>
-        </template>
-      </div>
+        </div>
+
+        {% if imgs|length > 1 %}
+        <!-- Thumbnail Swiper -->
+        <div class="swiper product-thumb-swiper" style="padding:4px 0;">
+          <div class="swiper-wrapper">
+            {% for img in imgs %}
+            <div class="swiper-slide product-thumb-slide">
+              <img src="{{ img }}" alt=""
+                   style="width:100%;height:100%;object-fit:cover;display:block;border-radius:4px;">
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      {% else %}
+        <div style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:80px;color:#ccc;">🐇</div>
+      {% endif %}
+      {% endwith %}
     </div>
 
     <!-- ── Product Info ── -->
@@ -135,9 +81,18 @@
         <span style="display:inline-block;background:#fff3cd;color:#856404;font-size:12px;padding:2px 8px;border-radius:3px;margin-bottom:10px;">{{ product.promo_label_zh }}</span>
       {% endif %}
 
-      <h1 style="font-size:clamp(19px,2.5vw,24px);font-weight:700;color:#333;margin:0 0 16px;line-height:1.35;">
+      <h1 style="font-size:clamp(19px,2.5vw,24px);font-weight:700;color:#333;margin:0 0 8px;line-height:1.35;">
         {{ product.name_zh|default:product.name }}
       </h1>
+
+      {% if avg_rating %}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="color:#f5a623;font-size:14px;letter-spacing:1px;">
+            {% for i in "12345" %}{% if forloop.counter <= avg_rating %}★{% else %}☆{% endif %}{% endfor %}
+          </span>
+          <span style="font-size:13px;color:#999;">{{ avg_rating }} ({{ review_count }} 則評論)</span>
+        </div>
+      {% endif %}
 
       <!-- Price -->
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:20px;padding:14px 0;border-top:1px solid #f0f0f0;border-bottom:1px solid #f0f0f0;">
@@ -286,46 +241,42 @@
     {% else %}
       <p style="color:#bbb;font-size:14px;">目前還沒有評論，成為第一個留言的人吧！</p>
     {% endif %}
+
+    <!-- Review Form -->
+    {% if user.is_authenticated and can_review %}
+      <div style="margin-top:28px;max-width:720px;background:#f8f8f8;border:1px solid #e0e0e0;border-radius:4px;padding:20px 24px;">
+        <h3 style="font-size:15px;font-weight:700;color:#333;margin:0 0 14px;">撰寫評論</h3>
+        <form method="post" action="/products/{{ product.slug }}/review/">
+          {% csrf_token %}
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:6px;">評分</label>
+            <div x-data="{ rating: 5 }" style="display:flex;gap:4px;">
+              <template x-for="star in [1,2,3,4,5]" :key="star">
+                <button type="button" @click="rating = star"
+                        :style="star <= rating ? 'color:#f5a623;' : 'color:#ddd;'"
+                        style="background:none;border:none;cursor:pointer;font-size:24px;padding:0;">
+                  ★
+                </button>
+              </template>
+              <input type="hidden" name="rating" :value="rating">
+            </div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:6px;">評論內容</label>
+            <textarea name="comment" rows="3" placeholder="分享您的使用心得..."
+                      style="width:100%;border:1px solid #ddd;border-radius:4px;padding:9px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;transition:border-color .15s;box-sizing:border-box;"
+                      onfocus="this.style.borderColor='#8f9b34'" onblur="this.style.borderColor='#ddd'"></textarea>
+          </div>
+          <button type="submit" class="btn-brand"
+                  style="padding:10px 24px;border-radius:4px;font-size:14px;font-weight:600;">
+            送出評論
+          </button>
+        </form>
+      </div>
+    {% elif user.is_authenticated and has_reviewed %}
+      <p style="margin-top:16px;font-size:13px;color:#999;">您已評論過此商品。</p>
+    {% endif %}
   </div>
-</div>
-
-<!-- ── Lightbox ── -->
-<div x-show="lightbox" x-cloak
-     @keydown.escape.window="lightbox = false"
-     @click.self="lightbox = false"
-     @touchstart.passive="touchStart($event)"
-     @touchend.passive="touchEnd($event)"
-     style="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;">
-
-  <!-- Close -->
-  <button @click="lightbox = false"
-          style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;cursor:pointer;width:44px;height:44px;border-radius:50%;color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:3;"
-          onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">×</button>
-
-  <!-- Image -->
-  <img :src="activeImg"
-       alt="{{ product.name_zh|default:product.name }}"
-       style="max-width:90vw;max-height:88vh;object-fit:contain;border-radius:4px;user-select:none;"
-       @click.stop draggable="false">
-
-  <!-- Prev (lightbox) -->
-  <button x-show="images.length > 1" @click.stop="prev()"
-          style="position:absolute;left:16px;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.15);border:none;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;transition:background .15s;"
-          onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-  </button>
-
-  <!-- Next (lightbox) -->
-  <button x-show="images.length > 1" @click.stop="next()"
-          style="position:absolute;right:16px;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.15);border:none;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;transition:background .15s;"
-          onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-  </button>
-
-  <!-- Counter -->
-  <div x-show="images.length > 1"
-       style="position:absolute;bottom:18px;left:0;right:0;text-align:center;color:rgba(255,255,255,.6);font-size:13px;"
-       x-text="(current + 1) + ' / ' + images.length"></div>
 </div>
 
 <!-- ── Mobile sticky CTA (hidden on md+) ── -->
@@ -371,14 +322,113 @@ input[type="radio"].sr-only:checked + .peer-checked-variant {
 /* Responsive 2-col → 1-col */
 @media (max-width: 680px) {
   .md-product-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
-  /* Extra bottom padding so content clears sticky CTA bar */
   .page-container { padding-bottom: 80px; }
 }
 
-/* Thumbnail scrollbar styling */
-::-webkit-scrollbar { height: 4px; }
-::-webkit-scrollbar-track { background: #f0f0f0; border-radius: 2px; }
-::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #8f9b34; }
+/* ── Swiper overrides ── */
+.product-main-swiper .swiper-button-prev,
+.product-main-swiper .swiper-button-next {
+  width: 38px; height: 38px;
+  background: rgba(255,255,255,.88);
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0,0,0,.14);
+  transition: background .15s, box-shadow .15s;
+}
+.product-main-swiper .swiper-button-prev:hover,
+.product-main-swiper .swiper-button-next:hover {
+  background: #fff;
+  box-shadow: 0 3px 14px rgba(0,0,0,.2);
+}
+.product-main-swiper .swiper-button-prev::after,
+.product-main-swiper .swiper-button-next::after {
+  font-size: 14px;
+  font-weight: 700;
+  color: #444;
+}
+
+.product-main-swiper .swiper-pagination-bullet {
+  width: 6px; height: 6px;
+  background: rgba(255,255,255,.65);
+  opacity: 1;
+  transition: all .2s ease;
+}
+.product-main-swiper .swiper-pagination-bullet-active {
+  width: 18px;
+  border-radius: 3px;
+  background: #8f9b34;
+}
+
+/* Thumbnail swiper */
+.product-thumb-swiper .swiper-slide {
+  width: 56px !important;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.45;
+  border: 2px solid transparent;
+  transition: opacity .2s, border-color .2s;
+}
+.product-thumb-swiper .swiper-slide:hover {
+  opacity: 0.8;
+}
+.product-thumb-swiper .swiper-slide-thumb-active {
+  opacity: 1;
+  border-color: #8f9b34;
+}
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var thumbEl = document.querySelector('.product-thumb-swiper');
+  var mainEl = document.querySelector('.product-main-swiper');
+  if (!mainEl) return;
+
+  // Collect unique image URLs for GLightbox (avoid Swiper loop duplicates)
+  var images = [];
+  mainEl.querySelectorAll('.swiper-slide:not(.swiper-slide-duplicate) img').forEach(function(img) {
+    images.push({ href: img.src, type: 'image', alt: img.alt });
+  });
+
+  var lightbox = GLightbox({
+    elements: images,
+    touchNavigation: true,
+    zoomable: true,
+    draggable: true,
+    openEffect: 'fade',
+    closeEffect: 'fade',
+  });
+
+  var thumbSwiper = null;
+  if (thumbEl) {
+    thumbSwiper = new Swiper(thumbEl, {
+      spaceBetween: 8,
+      slidesPerView: 'auto',
+      freeMode: true,
+      watchSlidesProgress: true,
+    });
+  }
+
+  var mainSwiper = new Swiper(mainEl, {
+    spaceBetween: 0,
+    loop: images.length > 1,
+    navigation: {
+      nextEl: '.product-main-swiper .swiper-button-next',
+      prevEl: '.product-main-swiper .swiper-button-prev',
+    },
+    pagination: {
+      el: '.product-main-swiper .swiper-pagination',
+      clickable: true,
+    },
+    thumbs: thumbSwiper ? { swiper: thumbSwiper } : undefined,
+  });
+
+  // Click slide → open GLightbox at the correct real index
+  mainEl.addEventListener('click', function(e) {
+    var slide = e.target.closest('.swiper-slide');
+    if (!slide || e.target.closest('.swiper-button-prev, .swiper-button-next')) return;
+    lightbox.openAt(mainSwiper.realIndex);
+  });
+});
+</script>
 {% endblock %}
